@@ -1,0 +1,18 @@
+services:
+  openharmony_old:
+    build:
+      context: .
+      dockerfile: Dockerfile.old_ref
+    container_name: openharmony_old
+    tty: true
+    working_dir: /home/openharmony
+    environment:
+      - LANG=en_US.UTF-8
+      - LANGUAGE=en_US.UTF-8
+      - LC_ALL=en_US.UTF-8
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./data:/home/openharmony/data
+    # Uncomment the following lines if you want to map ports
+    # ports:
+    #   - "8080:8080"

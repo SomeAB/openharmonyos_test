@@ -1,0 +1,68 @@
+# 1. Use Ubuntu 20.04 as the base image
+FROM ubuntu:20.04
+
+# 2. Set non-interactive mode for apt
+ARG DEBIAN_FRONTEND=noninteractive
+
+# 3. Use Huawei Cloud mirrors for apt sources
+RUN sed -i "s@http://.*archive.ubuntu.com@http://repo.huaweicloud.com@g" /etc/apt/sources.list \
+    && sed -i "s@http://.*security.ubuntu.com@http://repo.huaweicloud.com@g" /etc/apt/sources.list
+
+# 4. Install development tools and dependencies
+RUN apt-get update -y && apt-get install -y \
+    locales default-jre default-jdk libelf-dev bc rsync mtools dosfstools wget curl ssh vim ccache \
+    libxi-dev libxrandr-dev libxcursor-dev libxinerama-dev libpixman-1-dev qemu gcc-arm-none-eabi \
+    python2.7 xsltproc lib32z1-dev libgl1-mesa-dev libx11-dev libxml2-dev kmod libssl-dev openssl \
+    scons python3 mtd-utils binutils libglib2.0-dev genext2fs apt-utils gnupg zlib1g-dev m4 \
+    u-boot-tools build-essential unzip make libc6-dev-i386 x11proto-core-dev g++ libncurses5 \
+    libtinfo5 git-lfs gcc cpio perl ruby flex bison python3-pip zip git gperf doxygen liblz4-tool
+
+# 5. Install Python packages
+RUN pip3 install --trusted-host https://repo.huaweicloud.com -i https://repo.huaweicloud.com/repository/pypi/simple pycryptodome ecdsa redis
+
+# 6. Download Node.js, Ninja, GN, and Clang
+RUN wget -P /home/tools https://mirrors.huaweicloud.com/nodejs/v14.19.1/node-v14.19.1-linux-x64.tar.xz \
+    && wget -P /home/tools https://repo.huaweicloud.com/harmonyos/compiler/ninja/1.10.1/linux/ninja-linux-x86-1.10.1.tar.gz \
+    && wget -P /home/tools https://repo.huaweicloud.com/harmonyos/compiler/gn/2021/linux/gn-linux-x86-2021.tar.gz \
+    && wget -P /home/tools https://repo.huaweicloud.com/harmonyos/compiler/clang/12.0.1-36cd05/linux/clang_linux-x86_64-36cd05-20221030.tar.bz2
+
+# 7. Generate locale
+RUN locale-gen "en_US.UTF-8"
+
+# 8. Remove and relink shells and Python binaries
+RUN rm -rf /bin/sh /usr/bin/python /usr/bin/python3 \
+    && ln -s /bin/bash /bin/sh \
+    && ln -s /usr/bin/python3.8 /usr/bin/python3 \
+    && ln -s /usr/bin/python3.8 /usr/bin/python
+
+# 9. Extract downloaded tools and set up symlinks
+RUN mkdir -p /home/tools/ninja /home/tools/gn \
+    && tar -xvf /home/tools/clang_linux-x86_64-36cd05-20221030.tar.bz2 -C /home/tools \
+    && tar -xvf /home/tools/ninja-linux-x86-1.10.1.tar.gz -C /home/tools/ninja \
+    && tar -xvf /home/tools/gn-linux-x86-2021.tar.gz -C /home/tools/gn \
+    && tar -xJf /home/tools/node-v14.19.1-linux-x64.tar.xz -C /home/tools \
+    && cp /home/tools/node-v14.19.1-linux-x64/bin/node /usr/local/bin \
+    && ln -s /home/tools/node-v14.19.1-linux-x64/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s /home/tools/node-v14.19.1-linux-x64/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
+# 10. Add tool paths to the environment
+RUN echo 'export PATH=/home/tools/clang_linux-x86_64-36cd05-20221030/bin:$PATH' >> /root/.bashrc \
+    && echo 'export PATH=/home/tools/ninja:$PATH' >> /root/.bashrc \
+    && echo 'export PATH=/home/tools/gn:$PATH' >> /root/.bashrc \
+    && echo 'export PATH=/home/tools/node-v14.19.1-linux-x64/bin:$PATH' >> /root/.bashrc \
+    && echo 'export PATH=/root/.local/bin:$PATH' >> /root/.bashrc
+
+# 11. Clean up downloaded archives
+RUN rm -rf /home/tools/*.xz /home/tools/*.gz /home/tools/*.tar /home/tools/*.bz2
+
+# 12. Install OpenHarmony HPM CLI
+RUN npm install -g @ohos/hpm-cli --registry https://mirrors.huaweicloud.com/repository/npm/
+
+# 13. Set environment variables
+ENV LANG=en_US.UTF-8 LANGUAGE=en_US.UTF-8 LC_ALL=en_US.UTF-8 TZ=Asia/Shanghai
+
+# 14. Set the working directory
+WORKDIR /home/openharmony
+
+# 15. Set the default command
+CMD ["/bin/bash"]
