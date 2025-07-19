@@ -1,0 +1,8 @@
+# Ignore GitHub configuration and workflow files
+.github
+
+# Ignore Docker-related build and config files
+docker
+
+# Ignore old/backup Docker files and directories
+docker_old

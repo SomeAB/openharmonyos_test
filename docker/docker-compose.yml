@@ -1,0 +1,39 @@
+# docker-compose.yml
+
+# Define a custom network for our services to communicate securely
+networks:
+  openharmony_net:
+    driver: bridge
+
+services:
+  # Service 1: Builds and runs the OpenHarmony OS inside the QEMU emulator
+  openharmony_standard:
+    build:
+      context: .
+      # Make sure this filename matches your Dockerfile
+      dockerfile: Dockerfile.openharmony_standard
+    image: openharmony:standard-5.1
+    container_name: openharmony_standard_container
+    # Give the container direct access to KVM for hardware acceleration, which is critical for performance
+    devices:
+      - /dev/kvm
+    # This container joins our custom network to be reachable by the VNC gateway
+    networks:
+      - openharmony_net
+
+  # Service 2: The web gateway that lets you view the OS in a browser
+  vnc_gateway:
+    image: theasp/novnc
+    container_name: openharmony_vnc_gateway
+    # Expose the web interface on port 8080 of your host machine
+    ports:
+      - "8080:8080"
+    # This container also joins the custom network to find the OpenHarmony container
+    networks:
+      - openharmony_net
+    environment:
+      # Set the desired screen resolution for the VNC session
+      - DISPLAY_WIDTH=1920
+      - DISPLAY_HEIGHT=1080
+      # Disable the default xterm terminal, as we don't need it
+      - RUN_XTERM=no
