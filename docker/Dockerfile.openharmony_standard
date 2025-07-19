@@ -3,7 +3,7 @@ FROM ubuntu:24.04 AS builder
 
 # Install dependencies (optimized layers)  
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \  
-    git python3 python3-pip curl ninja-build make build-essential gcc g++ clang \  
+    git git-lfs python3 python3-pip curl ninja-build make build-essential gcc g++ clang \  
     zlib1g-dev libffi-dev libssl-dev ccache qemu-system-x86 \  
     libglib2.0-dev libpixman-1-dev libsdl2-dev flex bison \  
     genext2fs rsync unzip mtools dosfstools && \  
@@ -17,7 +17,7 @@ RUN curl -s https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/
 RUN mkdir /openharmony && cd /openharmony \  
     && repo init -u https://gitee.com/openharmony/manifest \  
         -b OpenHarmony-5.1.0-Release --no-repo-verify --depth=1 \  
-    && repo sync -c -j$(nproc) --no-tags --optimized-fetch
+    && repo sync -c -j8 --no-tags --optimized-fetch
 
 # Build standard system  
 RUN cd /openharmony \  
@@ -25,7 +25,7 @@ RUN cd /openharmony \
     && ./build.sh --product-name qemu_standard_x86_64 \  
         --target-cpu x86_64 \  
         --gn-args "ohos_full_link_executable=true" \  
-        --ccache -j$(nproc) 
+        --ccache -j8 
 
 # Stage 2: Runtime image  
 FROM ubuntu:24.04  
