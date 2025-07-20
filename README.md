@@ -4,6 +4,14 @@ This is an attempt to build from source **OpenHarmony OS 5.1 Standard**.
 
 IMP NOTE: The 3.2 build (old docker file) is working correctly. But 5.1 build has some build issues that I'm currently working out (mostly dependencies, flags, etc)
 
+## Steps to use
+1. Clone the repo or just Download the 'Dockerfile.openharmony_standard' and 'docker-compose.yml' files
+2. Open Terminal in vscode (or other editor)
+3. Change Directory to the folder containing the dockerfile + compose file you just downloaded/cloned
+4. Run the command `docker-compose build openharmony_standard` and it will start building. 
+
+Note: have 250-400GB space ideally. Download of source code alone is 49GB plus other dependencies, so it can take time depending on your internet speed. Also, as with any building from source, it will take time to build files. 
+
 ## Goals
 
 **Primary Goal:** Successfully build OpenHarmony 5.1
@@ -40,6 +48,14 @@ Machine Translated to Chinese:
 这是一次从源代码**构建 OpenHarmony OS 5.1 标准版本**的尝试。
 
 IMP注意：3.2构建（旧docker文件）工作正常。 但是5.1build有一些我目前正在解决的构建问题（主要是依赖关系，标志等）
+
+## 使用步骤
+1. 克隆回购或只是下载'Dockerfile。openharmony_standard'和'docker-compose。yml'文件
+2. 在vscode（或其他编辑器）中打开终端
+3. 将目录更改为包含刚刚下载/克隆的dockerfile+compose文件的文件夹
+4. 运行命令'docker-compose build openharmony_standard`，它将开始构建。 
+
+注意：理想情况下有250-400gb空间。 单独下载源代码是49gb加上其他依赖项，因此可能需要时间取决于您的互联网速度。 此外，与来自源代码的任何构建一样，构建文件需要时间。
 
 ## 目标
 
