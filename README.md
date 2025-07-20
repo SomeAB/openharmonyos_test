@@ -1,6 +1,7 @@
 This is attempt to build from source Open Harmony OS 5.1 Standard. 
 
 Primary Goal: Successfully build Open Harmony 5.1
+
 Additional Goals: GUI interaction, Further Exploration
 
 - We are using additional technologies like docker, docker-compose, qemu, novnc, etc to help get an GUI running as well. 
