@@ -1,6 +1,6 @@
 # OpenHarmony OS 5.1 Standard Build
 
-This is an attempt to build from source **OpenHarmony OS 5.1 Standard**.
+This is an attempt to build from source **OpenHarmony OS 5.1 Standard**. 
 
 ## Goals
 
@@ -19,6 +19,7 @@ We are using additional technologies like Docker, Docker Compose, QEMU, noVNC, e
 
 - In the `docker_old/` folder, there is an old Dockerfile that follows the official tutorial closely, but it is outdated version 3.2 (from year 2023). It's just there for additional reference.
 - Since we got networking issues before when getting source files from Gitee, we are using the officially provided tar archive.
+- WARNING 250-400 GB space needed roughly, though the final image once the compiling is done is much smaller
 
 ## References
 
@@ -54,6 +55,7 @@ Machine Translated to Chinese:
 
 - `docker_old/` 文件夹中包含一个旧版 Dockerfile，它紧跟官方教程但基于 2023 年的过时版本 3.2，仅供参考。  
 - 由于此前从 Gitee 获取源码时遇到网络问题，我们改为使用官方提供的 tar 包源码存档。
+- 警告大约需要250-400GB的空间，尽管编译完成后的最终图像要小得多
 
 ## 参考资料
 
