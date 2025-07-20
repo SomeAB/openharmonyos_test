@@ -28,3 +28,38 @@ We are using additional technologies like Docker, Docker Compose, QEMU, noVNC, e
 ## Contributing
 
 Feel free to open an issue to suggest refinements, ideas, etc. 
+
+______
+Machine Translated to Chinese:
+
+# OpenHarmony OS 5.1 标准构建
+
+这是一次从源代码**构建 OpenHarmony OS 5.1 标准版本**的尝试。
+
+## 目标
+
+**主要目标：** 成功构建 OpenHarmony 5.1。
+
+**附加目标：**
+
+- 实现 GUI 交互  
+- 支持小型 / 微型 / 资源受限设备的构建  
+- 进一步探索系统能力  
+
+## 使用的技术
+
+我们正在使用 Docker、Docker Compose、QEMU、noVNC 等技术，以便更好地支持 GUI 运行。
+
+## 项目结构
+
+- `docker_old/` 文件夹中包含一个旧版 Dockerfile，它紧跟官方教程但基于 2023 年的过时版本 3.2，仅供参考。  
+- 由于此前从 Gitee 获取源码时遇到网络问题，我们改为使用官方提供的 tar 包源码存档。
+
+## 参考资料
+
+- **源码链接：** [OpenHarmony v5.1.0 发布说明](https://docs.openharmony.cn/pages/v5.1/en/release-notes/OpenHarmony-v5.1.0-release.md)  
+- **过时的 Docker 教程：** [获取工具和源码](https://docs.openharmony.cn/pages/v5.1/en/device-dev/get-code/gettools-acquire.md)
+
+## 贡献
+
+欢迎随时提出问题、建议或改进想法！
