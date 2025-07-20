@@ -67,6 +67,16 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# STEP 7B: Add packages specifically requested as missing by the build system.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    default-jdk \
+    libtinfo5 \
+    u-boot-tools \
+    mtd-utils \
+    scons \
+    gcc-arm-none-eabi \
+    && rm -rf /var/lib/apt/lists/*
+
 # STEP 8: Use 'printf' to reliably create the pip config file and disable the PEP 668 error.
 RUN printf "[global]\nbreak-system-packages = true\n" > /etc/pip.conf
 
