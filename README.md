@@ -2,6 +2,8 @@
 
 This is an attempt to build from source **OpenHarmony OS 5.1 Standard**. 
 
+IMP NOTE: The 3.2 build (old docker file) is working correctly. But 5.1 build has some build issues that I'm currently working out (mostly dependencies, flags, etc)
+
 ## Goals
 
 **Primary Goal:** Successfully build OpenHarmony 5.1
@@ -36,6 +38,8 @@ Machine Translated to Chinese:
 # OpenHarmony OS 5.1 标准构建
 
 这是一次从源代码**构建 OpenHarmony OS 5.1 标准版本**的尝试。
+
+IMP注意：3.2构建（旧docker文件）工作正常。 但是5.1build有一些我目前正在解决的构建问题（主要是依赖关系，标志等）
 
 ## 目标
 
