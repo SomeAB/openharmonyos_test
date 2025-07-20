@@ -1,43 +1,116 @@
-# Stage 1: Build environment  
-FROM ubuntu:24.04 AS builder  
+# --- Stage 1: The "Builder" ---
+FROM ubuntu:22.04 AS builder
 
-# Install dependencies (optimized layers)  
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \  
-    git git-lfs python3 python3-pip curl ninja-build make build-essential gcc g++ clang \  
-    zlib1g-dev libffi-dev libssl-dev ccache qemu-system-x86 \  
-    libglib2.0-dev libpixman-1-dev libsdl2-dev flex bison \  
-    genext2fs rsync unzip mtools dosfstools && \  
-    rm -rf /var/lib/apt/lists/*  
+# STEP 1: Set the working directory for all subsequent commands.
+# This also creates the /openharmony directory.
+WORKDIR /openharmony
 
-# Install repo tool  
-RUN curl -s https://storage.googleapis.com/git-repo-downloads/repo > /usr/local/bin/repo \  
-    && chmod a+x /usr/local/bin/repo
+# STEP 2: Install ONLY curl, which is needed for the download step.
+# This small layer will be cached.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Clone OpenHarmony 5.1.0 source  
-RUN mkdir /openharmony && cd /openharmony \  
-    && repo init -u https://gitee.com/openharmony/manifest \  
-        -b OpenHarmony-5.1.0-Release --no-repo-verify --depth=1 \  
-    && repo sync -c -j8 --no-tags --optimized-fetch
+# STEP 3: Force the system shell to be bash for better script compatibility.
+RUN ln -sf /bin/bash /bin/sh
 
-# Build standard system  
-RUN cd /openharmony \  
-    && ./build/prebuilts_download.sh \  
-    && ./build.sh --product-name qemu_standard_x86_64 \  
-        --target-cpu x86_64 \  
-        --gn-args "ohos_full_link_executable=true" \  
-        --ccache -j8 
+# STEP 4: Download the full source code archive.
+# This large layer will be cached after the first successful download.
+RUN curl -L -o code-v5.1.0-Release.tar.gz 'https://repo.huaweicloud.com/openharmony/os/5.1.0-Release/code-v5.1.0-Release.tar.gz'
 
-# Stage 2: Runtime image  
-FROM ubuntu:24.04  
-COPY --from=builder /openharmony/out/qemu_standard_x86_64 /ohos  
-COPY --from=builder /openharmony/device/qemu/x86_64/launch.sh /  
+# STEP 5: Extract the source code and remove the archive to save space.
+RUN tar --strip-components=1 -xzf code-v5.1.0-Release.tar.gz && rm code-v5.1.0-Release.tar.gz
 
-# Install QEMU dependencies  
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \  
-    qemu-system-x86 ovmf spice-client-tools && \  
-    rm -rf /var/lib/apt/lists/*  
+# STEP 6: Change the working directory post-extraction to /openharmony/OpenHarmony folder
+WORKDIR /openharmony/OpenHarmony
 
-# Configure runtime  
-RUN chmod +x /launch.sh  
-EXPOSE 5900 2222  
-ENTRYPOINT ["/launch.sh"]  
+# STEP 7: Install the comprehensive list of all build and runtime dependencies.
+# This list is designed to be exhaustive to prevent missing package errors.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    bc \
+    bison \
+    build-essential \
+    ccache \
+    clang \
+    cpio \
+    default-jdk-headless \
+    dosfstools \
+    flex \
+    genext2fs \
+    git \
+    git-lfs \
+    gperf \
+    libelf-dev \
+    libffi-dev \
+    libglib2.0-dev \
+    liblz4-tool \
+    libncurses-dev \
+    libpixman-1-dev \
+    libsdl2-dev \
+    libssl-dev \
+    libx11-dev \
+    libxml2-dev \
+    libxrandr-dev \
+    make \
+    mtools \
+    ninja-build \
+    ovmf \
+    perl \
+    python3 \
+    python3-pip \
+    qemu-system-x86 \
+    ruby \
+    rsync \
+    unzip \
+    wget \
+    xsltproc \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# STEP 8: Use 'printf' to reliably create the pip config file and disable the PEP 668 error.
+RUN printf "[global]\nbreak-system-packages = true\n" > /etc/pip.conf
+
+# STEP 9: Create compiler wrapper scripts to force-include the missing header.
+RUN mkdir -p /usr/local/bin_wrappers && \
+    printf '#!/bin/bash\nexec /usr/bin/gcc -include cstdint "$@"' > /usr/local/bin_wrappers/gcc && \
+    printf '#!/bin/bash\nexec /usr/bin/g++ -include cstdint "$@"' > /usr/local/bin_wrappers/g++ && \
+    printf '#!/bin/bash\nexec /usr/bin/clang -include cstdint "$@"' > /usr/local/bin_wrappers/clang && \
+    printf '#!/bin/bash\nexec /usr/bin/clang++ -include cstdint "$@"' > /usr/local/bin_wrappers/clang++ && \
+    chmod +x /usr/local/bin_wrappers/*
+
+# STEP 10: Prepend the wrapper directory to the PATH environment variable.
+# This ensures our wrappers are called instead of the real compilers.
+ENV PATH="/usr/local/bin_wrappers:${PATH}"
+
+# STEP 11: Download the pre-built compiler toolchain required by the build script.
+RUN ./build/prebuilts_download.sh
+
+# STEP 12: Run the main build process to compile the OS, using all available CPU cores.
+RUN ./build.sh --product-name qemu_standard_x86_64 \
+    --target-cpu x86_64 \
+    --gn-args='ohos_full_link_executable=true' \
+    --no-prebuilt-sdk \
+    --ccache -j$(nproc) \
+    --ninja-args "-k 0"
+
+
+# --- Stage 2: The "Runtime" ---
+FROM ubuntu:22.04
+
+# STEP 13: Copy the compiled OS images and the launch script from the builder stage.
+COPY --from=builder /openharmony/out/qemu_standard_x86_64 /ohos
+COPY --from=builder /openharmony/device/qemu/x86_64/launch.sh /
+
+# STEP 14: Install the minimal dependencies needed to RUN the OS.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    qemu-system-x86 ovmf spice-client-tools && \
+    rm -rf /var/lib/apt/lists/*
+
+# STEP 15: Make the launch script executable.
+RUN chmod +x /launch.sh
+
+# STEP 16: Document that the container exposes port 5900 for the VNC/SPICE stream.
+EXPOSE 5900
+
+# STEP 17: Set the launch script as the default command when the container starts.
+ENTRYPOINT ["/launch.sh"]
