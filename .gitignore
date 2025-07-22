@@ -1,2 +1,5 @@
 # Ignore the .github directory
 .github/
+
+# Ignore the big tar archive containing the OpenHarmony source code
+docker/code-v5.1.0-Release.tar.gz

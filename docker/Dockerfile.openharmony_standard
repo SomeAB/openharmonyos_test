@@ -5,26 +5,20 @@ FROM ubuntu:22.04 AS builder
 # This also creates the /openharmony directory.
 WORKDIR /openharmony
 
-# STEP 2: Install ONLY curl, which is needed for the download step.
-# This small layer will be cached.
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# STEP 3: Force the system shell to be bash for better script compatibility.
+# STEP 2: Force the system shell to be bash for better script compatibility.
 RUN ln -sf /bin/bash /bin/sh
 
-# STEP 4: Download the full source code archive.
+# STEP 3: Download the full source code archive.
 # This large layer will be cached after the first successful download.
-RUN curl -L -o code-v5.1.0-Release.tar.gz 'https://repo.huaweicloud.com/openharmony/os/5.1.0-Release/code-v5.1.0-Release.tar.gz'
+COPY code-v5.1.0-Release.tar.gz .
 
-# STEP 5: Extract the source code and remove the archive to save space.
+# STEP 4: Extract the source code and remove the archive to save space.
 RUN tar --strip-components=1 -xzf code-v5.1.0-Release.tar.gz && rm code-v5.1.0-Release.tar.gz
 
-# STEP 6: Change the working directory post-extraction to /openharmony/OpenHarmony folder
+# STEP 5: Change the working directory post-extraction to /openharmony/OpenHarmony folder
 WORKDIR /openharmony/OpenHarmony
 
-# STEP 7: Install the comprehensive list of all build and runtime dependencies.
+# STEP 6: Install the comprehensive list of all build and runtime dependencies.
 # This list is designed to be exhaustive to prevent missing package errors.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     bc \
@@ -33,9 +27,12 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     ccache \
     clang \
     cpio \
+    curl \
+    default-jdk \
     default-jdk-headless \
     dosfstools \
     flex \
+    gcc-arm-none-eabi \
     genext2fs \
     git \
     git-lfs \
@@ -48,10 +45,12 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     libpixman-1-dev \
     libsdl2-dev \
     libssl-dev \
+    libtinfo5 \
     libx11-dev \
     libxml2-dev \
     libxrandr-dev \
     make \
+    mtd-utils \
     mtools \
     ninja-build \
     ovmf \
@@ -61,26 +60,24 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     qemu-system-x86 \
     ruby \
     rsync \
+    scons \
+    u-boot-tools \
     unzip \
     wget \
     xsltproc \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# STEP 7B: Add packages specifically requested as missing by the build system.
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    default-jdk \
-    libtinfo5 \
-    u-boot-tools \
-    mtd-utils \
-    scons \
-    gcc-arm-none-eabi \
-    && rm -rf /var/lib/apt/lists/*
-
-# STEP 8: Use 'printf' to reliably create the pip config file and disable the PEP 668 error.
+# STEP 7: Use 'printf' to reliably create the pip config file and disable the PEP 668 error.
 RUN printf "[global]\nbreak-system-packages = true\n" > /etc/pip.conf
 
-# STEP 9: Create compiler wrapper scripts to force-include the missing header.
+# STEP 7B: This makes the 'hb' command available and installs its Python dependencies.
+RUN python3 -m pip install --user build/hb
+
+# STEP 7C: Add ~/.local/bin to PATH so 'hb' command can be found
+ENV PATH="/root/.local/bin:${PATH}"
+
+# STEP 8: Create compiler wrapper scripts to force-include the missing header.
 RUN mkdir -p /usr/local/bin_wrappers && \
     printf '#!/bin/bash\nexec /usr/bin/gcc -include cstdint "$@"' > /usr/local/bin_wrappers/gcc && \
     printf '#!/bin/bash\nexec /usr/bin/g++ -include cstdint "$@"' > /usr/local/bin_wrappers/g++ && \
@@ -88,15 +85,45 @@ RUN mkdir -p /usr/local/bin_wrappers && \
     printf '#!/bin/bash\nexec /usr/bin/clang++ -include cstdint "$@"' > /usr/local/bin_wrappers/clang++ && \
     chmod +x /usr/local/bin_wrappers/*
 
-# STEP 10: Prepend the wrapper directory to the PATH environment variable.
+# STEP 9: Prepend the wrapper directory to the PATH environment variable.
 # This ensures our wrappers are called instead of the real compilers.
 ENV PATH="/usr/local/bin_wrappers:${PATH}"
 
-# STEP 11: Download the pre-built compiler toolchain required by the build script.
+# STEP 10: Download the pre-built compiler toolchain required by the build script.
 RUN ./build/prebuilts_download.sh
 
+# --- START NEW DIAGNOSTIC BLOCK ---
+# This block provides insights into hb's product discovery and internal state.
+
+# Diagnostic: Show hb's version and general help
+RUN echo "--- hb --version ---" && hb --version || true
+RUN echo "--- hb help ---" && hb help || true
+RUN echo "--- hb set --help ---" && hb set --help || true
+
+# Diagnostic: List all products hb can discover/is aware of (CRITICAL INSIGHT)
+RUN echo "--- hb list products ---" && hb list || \
+    echo "--- hb products ---" && hb products || \
+    echo "No 'list' or 'products' command found for hb." || true
+
+# Diagnostic: Show hb's internal product search paths (Advanced introspection)
+RUN echo "--- hb internal product search paths ---" && \
+    python3 -c "from hb.util.product_util import Product; print('Product search paths:', Product.get_product_dirs())" || \
+    echo "Could not get hb product search paths (Product util import failed or function changed)." || true
+
+# Diagnostic: Print the content of the specific config.json file (for comparison)
+RUN echo "--- Contents of ./vendor/ohemu/qemu_x86_64_linux_min/config.json ---" && \
+    cat ./vendor/ohemu/qemu_x86_64_linux_min/config.json || \
+    echo "Could not read config.json at expected path." || true
+
+# --- END NEW DIAGNOSTIC BLOCK ---
+
+# STEP 11: Set the product configuration for the OpenHarmony build.
+# Now that 'hb' is on the PATH, call it directly.
+RUN touch .hb && hb set -p ohemu/qemu_x86_64_linux_min
+RUN pwd && ls -la && hb --version
+
 # STEP 12: Run the main build process to compile the OS, using all available CPU cores.
-RUN ./build.sh --product-name qemu_standard_x86_64 \
+RUN ./build.sh --product-name qemu-x86_64-linux-min \
     --target-cpu x86_64 \
     --gn-args='ohos_full_link_executable=true' \
     --no-prebuilt-sdk \
@@ -108,7 +135,7 @@ RUN ./build.sh --product-name qemu_standard_x86_64 \
 FROM ubuntu:22.04
 
 # STEP 13: Copy the compiled OS images and the launch script from the builder stage.
-COPY --from=builder /openharmony/out/qemu_standard_x86_64 /ohos
+COPY --from=builder /openharmony/out/qemu-x86_64-linux/packages/phone/images /ohos
 COPY --from=builder /openharmony/device/qemu/x86_64/launch.sh /
 
 # STEP 14: Install the minimal dependencies needed to RUN the OS.
