@@ -92,38 +92,55 @@ ENV PATH="/usr/local/bin_wrappers:${PATH}"
 # STEP 10: Download the pre-built compiler toolchain required by the build script.
 RUN ./build/prebuilts_download.sh
 
-# --- START NEW DIAGNOSTIC BLOCK ---
-# This block provides insights into hb's product discovery and internal state.
+# --- START FINALIZED DIAGNOSTIC BLOCK ---
 
-# Diagnostic: Show hb's version and general help
+# Diagnostic: Confirm working directory and contents
+RUN echo "--- Current Working Directory ---" && pwd
+RUN echo "--- Contents of current directory ---" && ls -la . | head -n 10
+
+# Diagnostic: .hb marker verification
+RUN echo "--- .hb marker status ---" && \
+    if [ -f .hb ]; then echo ".hb marker exists"; else echo ".hb marker missing"; fi && \
+    ls -la .hb 2>/dev/null || echo "No .hb file present"
+
+# Diagnostic: hb command checks
 RUN echo "--- hb --version ---" && hb --version || true
 RUN echo "--- hb help ---" && hb help || true
 RUN echo "--- hb set --help ---" && hb set --help || true
 
-# Diagnostic: List all products hb can discover/is aware of (CRITICAL INSIGHT)
-RUN echo "--- hb list products ---" && hb list || \
-    echo "--- hb products ---" && hb products || \
-    echo "No 'list' or 'products' command found for hb." || true
+# Diagnostic: Source tree structure
+RUN echo "--- Source tree structure (max 3 levels) ---" && \
+    find . -maxdepth 3 -type d -print | sort || true
 
-# Diagnostic: Show hb's internal product search paths (Advanced introspection)
-RUN echo "--- hb internal product search paths ---" && \
-    python3 -c "from hb.util.product_util import Product; print('Product search paths:', Product.get_product_dirs())" || \
-    echo "Could not get hb product search paths (Product util import failed or function changed)." || true
-
-# Diagnostic: Print the content of the specific config.json file (for comparison)
-RUN echo "--- Contents of ./vendor/ohemu/qemu_x86_64_linux_min/config.json ---" && \
+# Diagnostic: Product config inspection
+RUN echo "--- Config.json contents ---" && \
     cat ./vendor/ohemu/qemu_x86_64_linux_min/config.json || \
-    echo "Could not read config.json at expected path." || true
+    echo "Could not read config.json"
 
-# --- END NEW DIAGNOSTIC BLOCK ---
+RUN echo "--- Extracted device_company ---" && \
+    grep "device_company" ./vendor/ohemu/qemu_x86_64_linux_min/config.json || true
+
+# Diagnostic: Global product search
+RUN echo "--- All QEMU product definitions ---" && \
+    find . -name "*.json" -exec grep -l "product_name" {} \; | grep -i qemu || \
+    echo "No QEMU products found"
+
+# --- END FINALIZED DIAGNOSTIC BLOCK ---
 
 # STEP 11: Set the product configuration for the OpenHarmony build.
 # Now that 'hb' is on the PATH, call it directly.
-RUN touch .hb && hb set -p ohemu/qemu_x86_64_linux_min
-RUN pwd && ls -la && hb --version
+WORKDIR /openharmony/OpenHarmony
+RUN touch .hb && \
+    hb set -p qemu-x86_64-linux-min@ohemu
+
+# NEW DIAGNOSTIC STEP: Verify what hb set actually stored internally
+# This will show the exact product name and vendor that hb registered.
+RUN echo "--- ohos_config.json contents ---" && \
+    cat ./.hb/ohos_config.json || \
+    echo "ERROR: .hb/ohos_config.json not found after hb set." || true
 
 # STEP 12: Run the main build process to compile the OS, using all available CPU cores.
-RUN ./build.sh --product-name qemu-x86_64-linux-min \
+RUN ./build.sh --product-name qemu-x86_64-linux-min@ohemu \
     --target-cpu x86_64 \
     --gn-args='ohos_full_link_executable=true' \
     --no-prebuilt-sdk \
