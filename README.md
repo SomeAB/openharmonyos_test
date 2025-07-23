@@ -18,7 +18,9 @@ IMP NOTE: The 3.2 build (old docker file) is working correctly. But 5.1 build ha
 5. Change Directory to the folder containing the dockerfile + compose file + source code tar archive
 6. Run the command `docker-compose build openharmony_standard --no-cache --progress=plain` and it will start building. (Note: `--no-cache` is used to clear up previous build cache, and `--progress=plain` gives more detailed output)
 
-Note: have 250-400GB space ideally. Download of source code alone is 49GB plus other dependencies, so it can take time depending on your internet speed. Also, as with any building from source, it will take time to build files. 
+Note: have 250-400GB space ideally. Download of source code alone is 49GB plus other dependencies, so it can take time depending on your internet speed. Also, as with any building from source, it will take time to build files.
+
+Note: Consider running `docker system prune -a --force` to clear up unused docker images and free up space after the build is done.
 
 ## Goals
 
@@ -75,6 +77,8 @@ ______
 6. 运行命令 `docker-compose build openharmony_standard --no-cache --progress=plain`，开始构建。（注意：`--no-cache` 用于清除之前的构建缓存，`--progress=plain` 提供更详细的输出）
 
 注意：理想情况下需要 250-400GB 空间。仅源代码下载就有 49GB，加上其他依赖项，因此根据您的网速可能需要一些时间。另外，与任何从源代码构建一样，编译文件需要时间。
+
+注意：构建完成后，可以运行 `docker system prune -a --force` 来清理未使用的 Docker 镜像并释放空间。
 
 ## 目标
 

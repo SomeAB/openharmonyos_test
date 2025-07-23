@@ -37,6 +37,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     git \
     git-lfs \
     gperf \
+    jq \
     libelf-dev \
     libffi-dev \
     libglib2.0-dev \
@@ -92,40 +93,32 @@ ENV PATH="/usr/local/bin_wrappers:${PATH}"
 # STEP 10: Download the pre-built compiler toolchain required by the build script.
 RUN ./build/prebuilts_download.sh
 
-# --- START FINALIZED DIAGNOSTIC BLOCK ---
+# --- START PRUNED & ENHANCED DIAGNOSTIC BLOCK (Essential Pre-Build) ---
 
-# Diagnostic: Confirm working directory and contents
-RUN echo "--- Current Working Directory ---" && pwd
-RUN echo "--- Contents of current directory ---" && ls -la . | head -n 10
+# Diagnostic: Verify jq exists before using it (from Deepseek)
+RUN echo "--- jq version ---" && jq --version || echo "jq not found"
 
-# Diagnostic: .hb marker verification
-RUN echo "--- .hb marker status ---" && \
-    if [ -f .hb ]; then echo ".hb marker exists"; else echo ".hb marker missing"; fi && \
-    ls -la .hb 2>/dev/null || echo "No .hb file present"
+# Diagnostic: Confirm the current working directory.
+RUN echo "--- Current Working Directory ---" && pwd || true
+RUN echo "--- Contents of current directory (first few lines) ---" && ls -la . | head -n 10 || true
 
-# Diagnostic: hb command checks
-RUN echo "--- hb --version ---" && hb --version || true
-RUN echo "--- hb help ---" && hb help || true
+# Diagnostic: Show hb set help (useful syntax reminder).
 RUN echo "--- hb set --help ---" && hb set --help || true
 
-# Diagnostic: Source tree structure
-RUN echo "--- Source tree structure (max 3 levels) ---" && \
-    find . -maxdepth 3 -type d -print | sort || true
+# Diagnostic: Print the ORIGINAL content of the specific config.json file.
+RUN echo "--- ORIGINAL Contents of ./vendor/ohemu/qemu_x86_64_linux_min/config.json ---" && \
+    cat ./vendor/ohemu/qemu_x86_64_linux_min/config.json || true
 
-# Diagnostic: Product config inspection
-RUN echo "--- Config.json contents ---" && \
-    cat ./vendor/ohemu/qemu_x86_64_linux_min/config.json || \
-    echo "Could not read config.json"
-
-RUN echo "--- Extracted device_company ---" && \
+# Diagnostic: Extract the 'device_company' from ORIGINAL config.json
+RUN echo "--- Extracted 'device_company' from ORIGINAL config.json ---" && \
     grep "device_company" ./vendor/ohemu/qemu_x86_64_linux_min/config.json || true
 
-# Diagnostic: Global product search
-RUN echo "--- All QEMU product definitions ---" && \
+# Diagnostic: Search all JSON files for 'product_name' mentioning 'qemu'
+RUN echo "--- Searching for all QEMU product JSON definitions ---" && \
     find . -name "*.json" -exec grep -l "product_name" {} \; | grep -i qemu || \
-    echo "No QEMU products found"
+    echo "No QEMU product JSONs with 'product_name' found." || true
 
-# --- END FINALIZED DIAGNOSTIC BLOCK ---
+# --- END PRUNED & ENHANCED DIAGNOSTIC BLOCK ---
 
 # STEP 11: Set the product configuration for the OpenHarmony build.
 # Now that 'hb' is on the PATH, call it directly.
@@ -133,11 +126,40 @@ WORKDIR /openharmony/OpenHarmony
 RUN touch .hb && \
     hb set -p qemu-x86_64-linux-min@ohemu
 
-# NEW DIAGNOSTIC STEP: Verify what hb set actually stored internally
-# This will show the exact product name and vendor that hb registered.
+# First sed patch (already in place): Patch config.json to align subsystem name
+RUN sed -i 's/"subsystem": "device_x86_64_virt"/"subsystem": "device_qemu-x86_64-linux"/g' \
+    ./vendor/ohemu/qemu_x86_64_linux_min/config.json
+
+# NEW SED PATCH (Crucial for component finding): Patch config.json for the COMPONENT name
+# This changes "component": "qemu_x86_64_linux_chipset" to "component": "device_qemu-x86_64-linux" in config.json.
+RUN sed -i 's/"component": "qemu_x86_64_linux_chipset"/"component": "device_qemu-x86_64-linux"/g' \
+    ./vendor/ohemu/qemu_x86_64_linux_min/config.json
+
+# Keep the existing sed patch for ohos.build
+# This resolves the conflict in the file explicitly named by the error message (for ohos.build's subsystem name).
+RUN sed -i 's/device_x86_64_virt/device_qemu-x86_64-linux/g' /openharmony/OpenHarmony/device/qemu/x86_64_virt/linux/ohos.build
+
+# --- Post-Configuration Diagnostics ---
+# Diagnostic: Verify the ohos.build file after its patch.
+RUN echo "--- Verifying ohos.build patch (subsystem line) ---" && \
+    grep -A 1 '"subsystem"' /openharmony/OpenHarmony/device/qemu/x86_64_virt/linux/ohos.build || true
+
+# Diagnostic: Verify hb configuration (useful for general success confirmation)
 RUN echo "--- ohos_config.json contents ---" && \
-    cat ./.hb/ohos_config.json || \
-    echo "ERROR: .hb/ohos_config.json not found after hb set." || true
+    { [ -f ./.hb/ohos_config.json ] && cat ./.hb/ohos_config.json || \
+    echo "ERROR: .hb/ohos_config.json missing"; }
+
+# Diagnostic: Verify config.json after its patches (subsystem & component)
+RUN echo "--- Verifying config.json patch (subsystem & component lines) ---" && \
+    grep -A 5 '"subsystem": "device_qemu-x86_64-linux"' ./vendor/ohemu/qemu_x86_64_linux_min/config.json || true
+
+# NEW Diagnostic: Explicitly verify the component name change in config.json
+# This confirms that "component": "device_qemu-x86_64-linux" is present in the file.
+RUN echo "--- Verifying config.json component name patch ---" && \
+    grep '"component": "device_qemu-x86_64-linux"' ./vendor/ohemu/qemu_x86_64_linux_min/config.json || \
+    echo "Component name 'device_qemu-x86_64-linux' not found in config.json after patch!" || true
+
+# --- END Post-Configuration Diagnostics ---
 
 # STEP 12: Run the main build process to compile the OS, using all available CPU cores.
 RUN ./build.sh --product-name qemu-x86_64-linux-min@ohemu \
