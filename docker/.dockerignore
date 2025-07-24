@@ -1,0 +1,16 @@
+# Ignore the Dockerfile and compose file from the context
+Dockerfile.openharmony_standard
+docker-compose.yml
+
+# Ignore build artifacts, logs, and utility scripts
+build_output.log
+critical_diagnostics.txt
+extract_diagnostics.ps1
+
+# Ignore the ignore file itself
+.dockerignore
+
+# Ignore common development directories
+.git
+.github
+.vscode

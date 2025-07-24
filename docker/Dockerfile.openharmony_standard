@@ -26,6 +26,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     build-essential \
     ccache \
     clang \
+    coreutils \
     cpio \
     curl \
     default-jdk \
@@ -69,14 +70,14 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# STEP 7: Use 'printf' to reliably create the pip config file and disable the PEP 668 error.
+# STEP 7A: Use 'printf' to reliably create the pip config file and disable the PEP 668 error.
 RUN printf "[global]\nbreak-system-packages = true\n" > /etc/pip.conf
 
-# STEP 7B: This makes the 'hb' command available and installs its Python dependencies.
-RUN python3 -m pip install --user build/hb
-
-# STEP 7C: Add ~/.local/bin to PATH so 'hb' command can be found
+# STEP 7B: Add ~/.local/bin to PATH so 'hb' command can be found
 ENV PATH="/root/.local/bin:${PATH}"
+
+# STEP 7C: This makes the 'hb' command available and installs its Python dependencies.
+RUN python3 -m pip install --user build/hb
 
 # STEP 8: Create compiler wrapper scripts to force-include the missing header.
 RUN mkdir -p /usr/local/bin_wrappers && \
@@ -95,14 +96,11 @@ RUN ./build/prebuilts_download.sh
 
 # --- START PRUNED & ENHANCED DIAGNOSTIC BLOCK (Essential Pre-Build) ---
 
-# Diagnostic: Verify jq exists before using it (from Deepseek)
-RUN echo "--- jq version ---" && jq --version || echo "jq not found"
-
 # Diagnostic: Confirm the current working directory.
 RUN echo "--- Current Working Directory ---" && pwd || true
 RUN echo "--- Contents of current directory (first few lines) ---" && ls -la . | head -n 10 || true
 
-# Diagnostic: Show hb set help (useful syntax reminder).
+# Diagnostic: Show hb set help (useful syntax reminder). Helps to confirm hb is installed.
 RUN echo "--- hb set --help ---" && hb set --help || true
 
 # Diagnostic: Print the ORIGINAL content of the specific config.json file.
@@ -118,56 +116,60 @@ RUN echo "--- Searching for all QEMU product JSON definitions ---" && \
     find . -name "*.json" -exec grep -l "product_name" {} \; | grep -i qemu || \
     echo "No QEMU product JSONs with 'product_name' found." || true
 
+# Diagnostic: Print the ORIGINAL content of ohos.build file
+RUN echo "--- ORIGINAL Contents of /device/qemu/x86_64_virt/linux/ohos.build ---" && \
+    cat /openharmony/OpenHarmony/device/qemu/x86_64_virt/linux/ohos.build || echo "ohos.build not found"
+
 # --- END PRUNED & ENHANCED DIAGNOSTIC BLOCK ---
 
 # STEP 11: Set the product configuration for the OpenHarmony build.
-# Now that 'hb' is on the PATH, call it directly.
+# Now that 'hb' is on the PATH, call it directly. Removed the 'touch .hb' from here, as it was causing conflict with folder creation
 WORKDIR /openharmony/OpenHarmony
-RUN touch .hb && \
-    hb set -p qemu-x86_64-linux-min@ohemu
+RUN hb set -p qemu-x86_64-linux-min@ohemu
 
-# First sed patch (already in place): Patch config.json to align subsystem name
-RUN sed -i 's/"subsystem": "device_x86_64_virt"/"subsystem": "device_qemu-x86_64-linux"/g' \
-    ./vendor/ohemu/qemu_x86_64_linux_min/config.json
+# Diagnostic: Check the environment hb is using to find the root path and other variables.
+RUN echo "--- hb environment details ---" && \
+    hb env || true
 
-# NEW SED PATCH (Crucial for component finding): Patch config.json for the COMPONENT name
-# This changes "component": "qemu_x86_64_linux_chipset" to "component": "device_qemu-x86_64-linux" in config.json.
-RUN sed -i 's/"component": "qemu_x86_64_linux_chipset"/"component": "device_qemu-x86_64-linux"/g' \
-    ./vendor/ohemu/qemu_x86_64_linux_min/config.json
-
-# Keep the existing sed patch for ohos.build
-# This resolves the conflict in the file explicitly named by the error message (for ohos.build's subsystem name).
-RUN sed -i 's/device_x86_64_virt/device_qemu-x86_64-linux/g' /openharmony/OpenHarmony/device/qemu/x86_64_virt/linux/ohos.build
-
-# --- Post-Configuration Diagnostics ---
-# Diagnostic: Verify the ohos.build file after its patch.
-RUN echo "--- Verifying ohos.build patch (subsystem line) ---" && \
-    grep -A 1 '"subsystem"' /openharmony/OpenHarmony/device/qemu/x86_64_virt/linux/ohos.build || true
-
-# Diagnostic: Verify hb configuration (useful for general success confirmation)
-RUN echo "--- ohos_config.json contents ---" && \
-    { [ -f ./.hb/ohos_config.json ] && cat ./.hb/ohos_config.json || \
-    echo "ERROR: .hb/ohos_config.json missing"; }
-
-# Diagnostic: Verify config.json after its patches (subsystem & component)
-RUN echo "--- Verifying config.json patch (subsystem & component lines) ---" && \
-    grep -A 5 '"subsystem": "device_qemu-x86_64-linux"' ./vendor/ohemu/qemu_x86_64_linux_min/config.json || true
-
-# NEW Diagnostic: Explicitly verify the component name change in config.json
-# This confirms that "component": "device_qemu-x86_64-linux" is present in the file.
-RUN echo "--- Verifying config.json component name patch ---" && \
-    grep '"component": "device_qemu-x86_64-linux"' ./vendor/ohemu/qemu_x86_64_linux_min/config.json || \
-    echo "Component name 'device_qemu-x86_64-linux' not found in config.json after patch!" || true
-
-# --- END Post-Configuration Diagnostics ---
-
-# STEP 12: Run the main build process to compile the OS, using all available CPU cores.
-RUN ./build.sh --product-name qemu-x86_64-linux-min@ohemu \
+# STEP 12: First stage of build.sh to generate preloader artifacts (including whitelist).
+# Use --build-only-load to stop after PRELOAD phase.
+RUN echo "=== STAGE 1: Running build to generate whitelist ===" && \
+    timeout 360 ./build.sh --product-name qemu-x86_64-linux-min@ohemu \
     --target-cpu x86_64 \
-    --gn-args='ohos_full_link_executable=true' \
     --no-prebuilt-sdk \
     --ccache -j$(nproc) \
-    --ninja-args "-k 0"
+    --ninja-args "-k 0" \
+    --log-level=debug \
+    --build-only-load || true
+
+
+# NEW DIAGNOSTIC: Output the contents of compile_standard_whitelist.json (after generation)
+RUN echo "=== compile_standard_whitelist.json ORIGINAL CONTENTS ===" && \
+    cat /openharmony/OpenHarmony/out/preloader/qemu-x86_64-linux-min/compile_standard_whitelist.json || true
+
+# DIAGNOSTIC: Show the generated preloader artifacts directory
+RUN echo "=== Preloader Artifacts List ===" && \
+    ls -lR out/preloader/qemu-x86_64-linux-min || true
+
+# DIAGNOSTIC: Show the contents of the generated parts.json
+RUN echo "=== parts.json CONTENTS ===" && \
+    cat out/preloader/qemu-x86_64-linux-min/parts.json || true
+
+# STEP 13: Resume the build process.
+# Use --fast-rebuild to skip preloader steps and resume correctly. Removed that flag for now, as it was skipping important steps.
+RUN ./build.sh --product-name qemu-x86_64-linux-min@ohemu \
+    --target-cpu x86_64 \
+    --no-prebuilt-sdk \
+    --ccache -j$(nproc) \
+    --ninja-args "-k 0" \
+    --log-level=debug \
+    || { echo "===== BUILD FAILED - DUMPING CRITICAL STATE ====="; \
+         cat /openharmony/OpenHarmony/device/qemu/x86_64_virt/linux/ohos.build || echo "ohos.build not found"; \
+         cat /openharmony/OpenHarmony/vendor/ohemu/qemu_x86_64_linux_min/config.json || echo "config.json not found"; \
+         ls -lR /openharmony/OpenHarmony/out/preloader/ || echo "Preloader dir not found"; \
+         cat /openharmony/OpenHarmony/out/preloader/qemu-x86_64-linux-min/parts.json || echo "parts.json not found"; \
+         cat /openharmony/OpenHarmony/out/preloader/qemu-x86_64-linux-min/compile_standard_whitelist.json || echo "whitelist.json not found"; \
+         exit 1; }
 
 
 # --- Stage 2: The "Runtime" ---

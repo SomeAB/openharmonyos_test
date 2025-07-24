@@ -3,3 +3,8 @@
 
 # Ignore the big tar archive containing the OpenHarmony source code
 docker/code-v5.1.0-Release.tar.gz
+
+# Ignore the logs and diagnostics files
+docker/build_output.log
+docker/critical_diagnostics.txt
+docker/extract_diagnostics.ps1
