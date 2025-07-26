@@ -24,6 +24,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     bc \
     bison \
     build-essential \
+    cargo \
     ccache \
     clang \
     coreutils \
@@ -61,6 +62,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     python3-pip \
     qemu-system-x86 \
     ruby \
+    rustc \
     rsync \
     scons \
     u-boot-tools \
@@ -69,6 +71,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     xsltproc \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# STEP 6B: Create a symbolic link so 'python' command points to 'python3'
+RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # STEP 7A: Use 'printf' to reliably create the pip config file and disable the PEP 668 error.
 RUN printf "[global]\nbreak-system-packages = true\n" > /etc/pip.conf
@@ -94,7 +99,78 @@ ENV PATH="/usr/local/bin_wrappers:${PATH}"
 # STEP 10: Download the pre-built compiler toolchain required by the build script.
 RUN ./build/prebuilts_download.sh
 
-# --- START PRUNED & ENHANCED DIAGNOSTIC BLOCK (Essential Pre-Build) ---
+# Diagnostic: Find and show the original content of the source whitelist template.
+RUN echo "--- SOURCE whitelist BEFORE patch ---" && \
+    find build/ -name compile_standard_whitelist.json -print0 | xargs -0 cat || echo "Source whitelist not found."
+
+# ===================================================================
+# Fix for ffrt dependency issue
+# ===================================================================
+
+# 1. Create or update ffrt ohos.build file
+RUN if [ ! -f foundation/ability/ffrt/ohos.build ]; then \
+    echo "=== Creating missing ohos.build for ffrt ===" && \
+    mkdir -p foundation/ability/ffrt && \
+    printf '{\n  "subsystem": "ability",\n  "parts": {\n    "ffrt": {\n      "module_list": [\n        "//foundation/ability/ffrt:libffrt"\n      ]\n    }\n  }\n}' > foundation/ability/ffrt/ohos.build; \
+else \
+    echo "=== Updating existing ffrt ohos.build ===" && \
+    # Ensure correct subsystem in existing file
+    sed -i 's/"subsystem": *"[^"]*"/"subsystem": "ability"/' foundation/ability/ffrt/ohos.build; \
+fi
+
+# 2. Add ffrt component to ability subsystem only if not already present
+RUN echo "=== Adding ffrt to ability subsystem ===" && \
+    if ! jq -e '.subsystems[] | select(.subsystem=="ability").components[] | select(.component=="ffrt")' vendor/ohemu/qemu_x86_64_linux_min/config.json >/dev/null; then \
+        jq '(.subsystems[] | select(.subsystem == "ability").components) += [{"component": "ffrt", "features":[]}]' \
+        vendor/ohemu/qemu_x86_64_linux_min/config.json > tmp.json && \
+        mv tmp.json vendor/ohemu/qemu_x86_64_linux_min/config.json; \
+    else \
+        echo "ffrt component already exists in ability subsystem"; \
+    fi
+
+# 3. Comprehensive whitelist patch
+RUN echo "=== Applying whitelist patches ===" && \
+    find build/ -name compile_standard_whitelist.json -print0 | xargs -0 sed -i \
+    -e '/"bundle_subsystem_error": \[/a \    "device\/qemu\/x86_64_virt\/linux\/ohos.build",\n    "foundation\/ability\/ffrt\/ohos.build",' \
+    -e 's/"subsystem_components": \[\],/"subsystem_components": [\n        "device_qemu-x86_64-linux",\n        "device_x86_64_virt",\n        "product_qemu-x86_64-linux-min"\n    ],/' \
+    -e '/"deps_added_external_part_module": \[/a \    "//foundation\/ability\/ffrt:libffrt",'
+
+
+# ===================================================================
+# Fix for ylong_runtime dependency issue
+# ===================================================================
+
+# 1. Create or update the ohos.build file for ylong_runtime
+RUN if [ ! -f third_party/ylong_runtime/ohos.build ]; then \
+    echo "=== Creating missing ohos.build for ylong_runtime ===" && \
+    mkdir -p third_party/ylong_runtime && \
+    printf '{\n  "subsystem": "commonlibrary",\n  "parts": {\n    "ylong_runtime": {\n      "module_list": [\n        "//third_party/ylong_runtime:ylong_runtime_rust"\n      ]\n    }\n  }\n}' > third_party/ylong_runtime/ohos.build; \
+else \
+    echo "=== Updating existing ylong_runtime ohos.build ===" && \
+    sed -i 's/"subsystem": *"[^"]*"/"subsystem": "commonlibrary"/' third_party/ylong_runtime/ohos.build; \
+fi
+
+# 2. Add ylong_runtime component to the commonlibrary subsystem
+RUN echo "=== Adding ylong_runtime to commonlibrary subsystem ===" && \
+    if ! jq -e '.subsystems[] | select(.subsystem=="commonlibrary").components[] | select(.component=="ylong_runtime")' vendor/ohemu/qemu_x86_64_linux_min/config.json >/dev/null; then \
+        jq '(.subsystems[] | select(.subsystem == "commonlibrary").components) += [{"component": "ylong_runtime", "features":[]}]' \
+        vendor/ohemu/qemu_x86_64_linux_min/config.json > tmp.json && \
+        mv tmp.json vendor/ohemu/qemu_x86_64_linux_min/config.json; \
+    else \
+        echo "ylong_runtime component already exists in commonlibrary subsystem"; \
+    fi
+
+# 3. Apply whitelist patches for ylong_runtime
+RUN echo "=== Applying ylong_runtime whitelist patches ===" && \
+    find build/ -name compile_standard_whitelist.json -print0 | xargs -0 sed -i \
+    -e '/"bundle_subsystem_error": \[/a \    "third_party\/ylong_runtime\/ohos.build",' \
+    -e '/"deps_added_external_part_module": \[/a \    "//third_party\/ylong_runtime:ylong_runtime_rust",'
+
+# Diagnostic: Find and show the patched content of the source whitelist template.
+RUN echo "--- SOURCE whitelist AFTER patch ---" && \
+    find build/ -name compile_standard_whitelist.json -print0 | xargs -0 cat || echo "Source whitelist file not found after patch."
+
+# --- START DIAGNOSTIC BLOCK (Essential Pre-Build) ---
 
 # Diagnostic: Confirm the current working directory.
 RUN echo "--- Current Working Directory ---" && pwd || true
@@ -103,74 +179,41 @@ RUN echo "--- Contents of current directory (first few lines) ---" && ls -la . |
 # Diagnostic: Show hb set help (useful syntax reminder). Helps to confirm hb is installed.
 RUN echo "--- hb set --help ---" && hb set --help || true
 
-# Diagnostic: Print the ORIGINAL content of the specific config.json file.
-RUN echo "--- ORIGINAL Contents of ./vendor/ohemu/qemu_x86_64_linux_min/config.json ---" && \
-    cat ./vendor/ohemu/qemu_x86_64_linux_min/config.json || true
+# Diagnostic: Show hb build help (useful syntax reminder). Helps to confirm hb is installed.
+RUN echo "--- hb build --help ---" && hb build --help || true
 
-# Diagnostic: Extract the 'device_company' from ORIGINAL config.json
-RUN echo "--- Extracted 'device_company' from ORIGINAL config.json ---" && \
-    grep "device_company" ./vendor/ohemu/qemu_x86_64_linux_min/config.json || true
+# Diagnostic: Print the content of both ohos.build files
+RUN echo "--- Contents of ohos.build files ---" && \
+    echo "device/qemu/x86_64_virt/linux/ohos.build:" && \
+    cat device/qemu/x86_64_virt/linux/ohos.build && \
+    echo "\ndevice/qemu/x86_64_virt/ohos.build:" && \
+    cat device/qemu/x86_64_virt/ohos.build
 
-# Diagnostic: Search all JSON files for 'product_name' mentioning 'qemu'
-RUN echo "--- Searching for all QEMU product JSON definitions ---" && \
-    find . -name "*.json" -exec grep -l "product_name" {} \; | grep -i qemu || \
-    echo "No QEMU product JSONs with 'product_name' found." || true
+RUN echo "--- UPDATED Contents of config.json ---" && \
+    cat vendor/ohemu/qemu_x86_64_linux_min/config.json
 
-# Diagnostic: Print the ORIGINAL content of ohos.build file
-RUN echo "--- ORIGINAL Contents of /device/qemu/x86_64_virt/linux/ohos.build ---" && \
-    cat /openharmony/OpenHarmony/device/qemu/x86_64_virt/linux/ohos.build || echo "ohos.build not found"
-
-# --- END PRUNED & ENHANCED DIAGNOSTIC BLOCK ---
+# --- END DIAGNOSTIC BLOCK ---
 
 # STEP 11: Set the product configuration for the OpenHarmony build.
 # Now that 'hb' is on the PATH, call it directly. Removed the 'touch .hb' from here, as it was causing conflict with folder creation
 WORKDIR /openharmony/OpenHarmony
-RUN hb set -p qemu-x86_64-linux-min@ohemu
+RUN hb set --product-name qemu-x86_64-linux-min@ohemu
 
 # Diagnostic: Check the environment hb is using to find the root path and other variables.
 RUN echo "--- hb environment details ---" && \
     hb env || true
 
-# STEP 12: First stage of build.sh to generate preloader artifacts (including whitelist).
-# Use --build-only-load to stop after PRELOAD phase.
-RUN echo "=== STAGE 1: Running build to generate whitelist ===" && \
-    timeout 360 ./build.sh --product-name qemu-x86_64-linux-min@ohemu \
+
+# STEP 12: Build using the accompanying 'hb build' command
+RUN echo "=== Running hb build to build the OpenHarmony OS ===" && \
+    hb build --product-name qemu-x86_64-linux-min@ohemu \
     --target-cpu x86_64 \
-    --no-prebuilt-sdk \
-    --ccache -j$(nproc) \
-    --ninja-args "-k 0" \
-    --log-level=debug \
-    --build-only-load || true
+    --verbose \
+    --log-level debug
 
-
-# NEW DIAGNOSTIC: Output the contents of compile_standard_whitelist.json (after generation)
-RUN echo "=== compile_standard_whitelist.json ORIGINAL CONTENTS ===" && \
-    cat /openharmony/OpenHarmony/out/preloader/qemu-x86_64-linux-min/compile_standard_whitelist.json || true
-
-# DIAGNOSTIC: Show the generated preloader artifacts directory
-RUN echo "=== Preloader Artifacts List ===" && \
-    ls -lR out/preloader/qemu-x86_64-linux-min || true
-
-# DIAGNOSTIC: Show the contents of the generated parts.json
-RUN echo "=== parts.json CONTENTS ===" && \
-    cat out/preloader/qemu-x86_64-linux-min/parts.json || true
-
-# STEP 13: Resume the build process.
-# Use --fast-rebuild to skip preloader steps and resume correctly. Removed that flag for now, as it was skipping important steps.
-RUN ./build.sh --product-name qemu-x86_64-linux-min@ohemu \
-    --target-cpu x86_64 \
-    --no-prebuilt-sdk \
-    --ccache -j$(nproc) \
-    --ninja-args "-k 0" \
-    --log-level=debug \
-    || { echo "===== BUILD FAILED - DUMPING CRITICAL STATE ====="; \
-         cat /openharmony/OpenHarmony/device/qemu/x86_64_virt/linux/ohos.build || echo "ohos.build not found"; \
-         cat /openharmony/OpenHarmony/vendor/ohemu/qemu_x86_64_linux_min/config.json || echo "config.json not found"; \
-         ls -lR /openharmony/OpenHarmony/out/preloader/ || echo "Preloader dir not found"; \
-         cat /openharmony/OpenHarmony/out/preloader/qemu-x86_64-linux-min/parts.json || echo "parts.json not found"; \
-         cat /openharmony/OpenHarmony/out/preloader/qemu-x86_64-linux-min/compile_standard_whitelist.json || echo "whitelist.json not found"; \
-         exit 1; }
-
+# Diagnostic: List all final build artifacts in the main output directory.
+RUN echo "--- Listing All Final Build Artifacts in the 'out' directory ---" && \
+    ls -lR out/ || true
 
 # --- Stage 2: The "Runtime" ---
 FROM ubuntu:22.04
