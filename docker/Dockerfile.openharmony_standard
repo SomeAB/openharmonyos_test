@@ -224,6 +224,191 @@ RUN echo "=== Applying the patch no 3 ===" && \
 RUN echo "--- config.json AFTER patch ---" && \
     cat vendor/ohemu/qemu_x86_64_linux_min/config.json || echo "config.json not found."
 
+# ===================================================================
+# Fix no 4
+# ===================================================================
+
+# Diagnostic: Find and Show the contents before the patch.
+RUN echo "--- Outer Device Manager BUILD.gn file BEFORE patch ---" && \
+    cat foundation/distributedhardware/device_manager/BUILD.gn || echo "Outer Device Manager BUILD.gn file not found."
+
+# Diagnostic: Find and Show the contents before the patch.
+RUN echo "--- Inner Device Manager BUILD.gn file BEFORE patch ---" && \
+    cat foundation/distributedhardware/device_manager/display/entry/BUILD.gn || echo "Inner Device Manager BUILD.gn file not found."
+
+# Patch 4A: Remove DeviceManager_UI dependency from outer BUILD.gn to avoid ohos_hap() error
+RUN echo "=== Applying the patch no 4A ===" && \
+    build_file="foundation/distributedhardware/device_manager/BUILD.gn" && \
+    output_file="BUILD_gn_patched.tmp" && \
+    echo "Processing BUILD.gn file: $build_file" && \
+    \
+    echo "--- Running Pre-flight Validations ---" && \
+    if [ ! -f "$build_file" ]; then \
+        echo "✗ ERROR: Target BUILD.gn file not found at $build_file. Aborting patch." >&2; \
+        exit 1; \
+    fi && \
+    if ! grep -q 'deps += \[ "display/entry:DeviceManager_UI" \]' "$build_file"; then \
+        echo "✗ ERROR: Target DeviceManager_UI dependency line not found. Aborting patch." >&2; \
+        exit 1; \
+    fi && \
+    if ! grep -q 'if (product_name != "qemu-arm-linux-min")' "$build_file"; then \
+        echo "✗ ERROR: Target conditional block not found. Aborting patch." >&2; \
+        exit 1; \
+    fi && \
+    echo "✓ Pre-flight checks passed." && \
+    \
+    echo "--- Applying changes: removing DeviceManager_UI conditional block ---" && \
+    sed '/if (product_name != "qemu-arm-linux-min") {/,/}/d' "$build_file" > "$output_file" && \
+    echo "✓ Changes generated into temporary file." && \
+    \
+    echo "--- Running Post-flight Validations on generated file ---" && \
+    if [ ! -f "$output_file" ]; then \
+        echo "✗ Validation failed: Output file was not created." >&2; \
+        exit 1; \
+    fi && \
+    if grep -q 'deps += \[ "display/entry:DeviceManager_UI" \]' "$output_file"; then \
+        echo "✗ Validation failed: DeviceManager_UI dependency still present in output." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    if grep -q 'if (product_name != "qemu-arm-linux-min")' "$output_file"; then \
+        echo "✗ Validation failed: Conditional block still present in output." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    if ! grep -q 'group("device_manager")' "$output_file"; then \
+        echo "✗ Validation failed: Main device_manager group missing from output." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    echo "✓ Post-flight checks passed." && \
+    \
+    mv "$output_file" "$build_file" && \
+    echo "✓✓✓ Patch 4A applied and validated successfully! ✓✓✓"
+
+# Patch 4B: Convert ohos_hap() to ohos_app() in inner BUILD.gn for modern template compatibility
+RUN echo "=== Applying the patch no 4B ===" && \
+    build_file="foundation/distributedhardware/device_manager/display/entry/BUILD.gn" && \
+    output_file="BUILD_gn_inner_patched.tmp" && \
+    echo "Processing inner BUILD.gn file: $build_file" && \
+    \
+    echo "--- Running Pre-flight Validations ---" && \
+    if [ ! -f "$build_file" ]; then \
+        echo "✗ ERROR: Target inner BUILD.gn file not found at $build_file. Aborting patch." >&2; \
+        exit 1; \
+    fi && \
+    if ! grep -q 'ohos_hap("DeviceManager_UI")' "$build_file"; then \
+        echo "✗ ERROR: Target ohos_hap template not found. Aborting patch." >&2; \
+        exit 1; \
+    fi && \
+    if grep -q 'ohos_app(' "$build_file"; then \
+        echo "✗ ERROR: ohos_app template already exists. Patch may have been applied. Aborting." >&2; \
+        exit 1; \
+    fi && \
+    echo "✓ Pre-flight checks passed." && \
+    \
+    echo "--- Applying changes: converting ohos_hap to ohos_app template ---" && \
+    sed -e 's/ohos_hap("DeviceManager_UI")/ohos_app("DeviceManager_UI")/' \
+        -e '/ohos_app("DeviceManager_UI") {/a\  app_type = "hap"' \
+        -e '/publicity_file =/d' \
+        -e '/certificate_profile =/d' \
+        -e '/if (defined(sign_hap_py_path)) {/,/}/d' \
+        "$build_file" > "$output_file" && \
+    echo "✓ Changes generated into temporary file." && \
+    \
+    echo "--- Running Post-flight Validations on generated file ---" && \
+    if [ ! -f "$output_file" ]; then \
+        echo "✗ Validation failed: Output file was not created." >&2; \
+        exit 1; \
+    fi && \
+    if ! grep -q 'ohos_app("DeviceManager_UI")' "$output_file"; then \
+        echo "✗ Validation failed: ohos_app template not found in output." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    if ! grep -q 'app_type = "hap"' "$output_file"; then \
+        echo "✗ Validation failed: app_type parameter not found in output." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    if grep -q 'ohos_hap(' "$output_file"; then \
+        echo "✗ Validation failed: ohos_hap template still present in output." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    if grep -q 'publicity_file\|certificate_profile' "$output_file"; then \
+        echo "✗ Validation failed: Obsolete parameters still present in output." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    if grep -q 'sign_hap_py_path' "$output_file"; then \
+        echo "✗ Validation failed: Signing block still present in output." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    echo "✓ Post-flight checks passed." && \
+    \
+    mv "$output_file" "$build_file" && \
+    echo "✓✓✓ Patch 4B applied and validated successfully! ✓✓✓"
+
+# Diagnostic: Find and Show the contents after the patch.
+RUN echo "--- Outer Device Manager BUILD.gn file AFTER patch ---" && \
+    cat foundation/distributedhardware/device_manager/BUILD.gn || echo "Outer Device Manager BUILD.gn file not found."
+
+# Diagnostic: Find and Show the contents after the patch.
+RUN echo "--- Inner Device Manager BUILD.gn file AFTER patch ---" && \
+    cat foundation/distributedhardware/device_manager/display/entry/BUILD.gn || echo "Inner Device Manager BUILD.gn file not found."
+
+# ===================================================================
+# Fix no 5
+# ===================================================================
+
+# Diagnostic: Find and Show the contents before the patch.
+RUN echo "--- config.json BEFORE patch ---" && \
+    cat vendor/ohemu/qemu_x86_64_linux_min/config.json || echo "config.json not found."
+
+# Patch 5: Add hiappevent component to hiviewdfx subsystem for accessibility interface support
+RUN echo "=== Applying the patch no 5 ===" && \
+    config_file="vendor/ohemu/qemu_x86_64_linux_min/config.json" && \
+    output_file="config_hiappevent_patched.json" && \
+    echo "Processing config file: $config_file" && \
+    \
+    echo "--- Running Pre-flight Validations ---" && \
+    if [ ! -f "$config_file" ]; then \
+        echo "✗ ERROR: Config file not found at $config_file. Aborting patch." >&2; \
+        exit 1; \
+    fi && \
+    if ! jq -e '.subsystems[] | select(.subsystem == "hiviewdfx")' "$config_file" >/dev/null 2>&1; then \
+        echo "✗ ERROR: Prerequisite 'hiviewdfx' subsystem not found. Aborting patch." >&2; \
+        exit 1; \
+    fi && \
+    echo "✓ Pre-flight checks passed." && \
+    \
+    echo "--- Applying changes: adding hiappevent component to hiviewdfx subsystem ---" && \
+    jq ' \
+        (.subsystems[] | select(.subsystem == "hiviewdfx").components) |= (. + [{"component": "hiappevent", "features": []}] | unique_by(.component)) \
+    ' "$config_file" > "$output_file" && \
+    echo "✓ Changes generated into temporary file." && \
+    \
+    echo "--- Running Post-flight Validations on generated file ---" && \
+    if [ ! -f "$output_file" ]; then \
+        echo "✗ Validation failed: Output file was not created." >&2; \
+        exit 1; \
+    fi && \
+    if ! jq -e '.subsystems[] | select(.subsystem == "hiviewdfx").components[] | select(.component == "hiappevent")' "$output_file" >/dev/null 2>&1; then \
+        echo "✗ Validation failed: 'hiappevent' component not found in 'hiviewdfx' subsystem." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    if ! jq -e '.subsystems[] | select(.subsystem == "hiviewdfx")' "$output_file" >/dev/null 2>&1; then \
+        echo "✗ Validation failed: 'hiviewdfx' subsystem missing from output." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    echo "✓ Post-flight checks passed." && \
+    \
+    mv "$output_file" "$config_file" && \
+    echo "✓✓✓ Patch 5 applied and validated successfully! ✓✓✓"
+
+# Diagnostic: Find and Show the contents after the patch.
+RUN echo "--- config.json AFTER patch ---" && \
+    cat vendor/ohemu/qemu_x86_64_linux_min/config.json || echo "config.json not found."
+
+# ===================================================================
+# Fix no 6
+# ===================================================================
+
+
 # --- START DIAGNOSTIC BLOCK (Essential Pre-Build) ---
 
 # Diagnostic: Confirm the current working directory.

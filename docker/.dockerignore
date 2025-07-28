@@ -14,3 +14,6 @@ extract_diagnostics.ps1
 .git
 .github
 .vscode
+
+# Ignore the extra context directories
+extra_context_01/
