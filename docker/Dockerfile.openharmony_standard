@@ -99,76 +99,130 @@ ENV PATH="/usr/local/bin_wrappers:${PATH}"
 # STEP 10: Download the pre-built compiler toolchain required by the build script.
 RUN ./build/prebuilts_download.sh
 
-# Diagnostic: Find and show the original content of the source whitelist template.
-RUN echo "--- SOURCE whitelist BEFORE patch ---" && \
+# ===================================================================
+# Fix no 1
+# ===================================================================
+
+# Diagnostic: Find and Show the contents before the patch.
+RUN echo "--- Compile Standard Whitelist BEFORE patch ---" && \
+    find build/ -name compile_standard_whitelist.json -print0 | xargs -0 cat || echo "Source whitelist not found."
+
+# Patch 1: Add entries to compile_standard_whitelist.json
+RUN echo "=== Applying the patch no 1 ===" && \
+    find build/ -name compile_standard_whitelist.json | while read file; do \
+        echo "Processing file: $file"; \
+        # Check if subsystem_components is empty and add entries
+        if jq -e '.subsystem_components | length == 0' "$file" >/dev/null 2>&1; then \
+            echo "Adding entries to empty subsystem_components array in $file"; \
+            jq '.subsystem_components = ["device_qemu-x86_64-linux", "device_x86_64_virt", "product_qemu-x86_64-linux-min"]' "$file" > tmp.json && mv tmp.json "$file" && echo "Entries added successfully to subsystem_components"; \
+        else \
+            echo "subsystem_components array is not empty, checking individual entries"; \
+            jq '.subsystem_components |= (. + ["device_qemu-x86_64-linux", "device_x86_64_virt", "product_qemu-x86_64-linux-min"] | unique)' "$file" > tmp.json && mv tmp.json "$file" && echo "Missing entries added to subsystem_components"; \
+        fi; \
+        # Also add the bundle_subsystem_error entry
+        if ! jq -e ".bundle_subsystem_error[] | select(. == \"device/qemu/x86_64_virt/linux/ohos.build\")" "$file" >/dev/null 2>&1; then \
+            echo "Adding entry to bundle_subsystem_error in $file"; \
+            jq ".bundle_subsystem_error += [\"device/qemu/x86_64_virt/linux/ohos.build\"]" "$file" > tmp.json && mv tmp.json "$file" && echo "Entry added successfully to bundle_subsystem_error"; \
+        else \
+            echo "Entry already exists in bundle_subsystem_error array"; \
+        fi; \
+    done
+
+# Diagnostic: Find & Show the contents after the patch.
+RUN echo "--- Compile Standard Whitelist AFTER patch ---" && \
     find build/ -name compile_standard_whitelist.json -print0 | xargs -0 cat || echo "Source whitelist not found."
 
 # ===================================================================
-# Fix for ffrt dependency issue
+# Fix no 2
 # ===================================================================
 
-# 1. Create or update ffrt ohos.build file
-RUN if [ ! -f foundation/ability/ffrt/ohos.build ]; then \
-    echo "=== Creating missing ohos.build for ffrt ===" && \
-    mkdir -p foundation/ability/ffrt && \
-    printf '{\n  "subsystem": "ability",\n  "parts": {\n    "ffrt": {\n      "module_list": [\n        "//foundation/ability/ffrt:libffrt"\n      ]\n    }\n  }\n}' > foundation/ability/ffrt/ohos.build; \
-else \
-    echo "=== Updating existing ffrt ohos.build ===" && \
-    # Ensure correct subsystem in existing file
-    sed -i 's/"subsystem": *"[^"]*"/"subsystem": "ability"/' foundation/ability/ffrt/ohos.build; \
-fi
+# Diagnostic: Find and Show the contents before the patch.
+RUN echo "--- Subsystem Components Whitelist BEFORE patch ---" && \
+    find build/ -name subsystem_components_whitelist.json -print0 | xargs -0 cat || echo "Subsystem components whitelist not found."
 
-# 2. Add ffrt component to ability subsystem only if not already present
-RUN echo "=== Adding ffrt to ability subsystem ===" && \
-    if ! jq -e '.subsystems[] | select(.subsystem=="ability").components[] | select(.component=="ffrt")' vendor/ohemu/qemu_x86_64_linux_min/config.json >/dev/null; then \
-        jq '(.subsystems[] | select(.subsystem == "ability").components) += [{"component": "ffrt", "features":[]}]' \
-        vendor/ohemu/qemu_x86_64_linux_min/config.json > tmp.json && \
-        mv tmp.json vendor/ohemu/qemu_x86_64_linux_min/config.json; \
-    else \
-        echo "ffrt component already exists in ability subsystem"; \
-    fi
+# Patch 2: Add 3 entries to the subsystem_components_whitelist.json
+RUN echo "=== Applying the patch no 2 ===" && \
+    find build/ -name subsystem_components_whitelist.json | while read file; do \
+        echo "Processing file: $file"; \
+        device_exists=$(jq -e "has(\"device_qemu-x86_64-linux\")" "$file" 2>/dev/null); \
+        product_exists=$(jq -e "has(\"product_qemu-x86_64-linux-min\")" "$file" 2>/dev/null); \
+        virt_exists=$(jq -e "has(\"device_x86_64_virt\")" "$file" 2>/dev/null); \
+        echo "Device exists: $device_exists, Product exists: $product_exists, Virt exists: $virt_exists"; \
+        if [ "$device_exists" = "true" ] || [ "$product_exists" = "true" ] || [ "$virt_exists" = "true" ]; then \
+            echo "Info: One or more entries were already present in subsystem_components_whitelist"; \
+        fi; \
+        echo "Adding entries to $file"; \
+        jq ". + {\"device_qemu-x86_64-linux\": \"device_qemu-x86_64-linux\", \"product_qemu-x86_64-linux-min\": \"product_qemu-x86_64-linux-min\", \"device_x86_64_virt\": \"device_x86_64_virt\"}" "$file" > tmp.json && mv tmp.json "$file" && echo "Entries added successfully"; \
+    done
 
-# 3. Comprehensive whitelist patch
-RUN echo "=== Applying whitelist patches ===" && \
-    find build/ -name compile_standard_whitelist.json -print0 | xargs -0 sed -i \
-    -e '/"bundle_subsystem_error": \[/a \    "device\/qemu\/x86_64_virt\/linux\/ohos.build",\n    "foundation\/ability\/ffrt\/ohos.build",' \
-    -e 's/"subsystem_components": \[\],/"subsystem_components": [\n        "device_qemu-x86_64-linux",\n        "device_x86_64_virt",\n        "product_qemu-x86_64-linux-min"\n    ],/' \
-    -e '/"deps_added_external_part_module": \[/a \    "//foundation\/ability\/ffrt:libffrt",'
-
+# Diagnostic: Find and Show the contents after the patch.
+RUN echo "--- Subsystem Components Whitelist AFTER patch ---" && \
+    find build/ -name subsystem_components_whitelist.json -print0 | xargs -0 cat || echo "Subsystem components whitelist not found."
 
 # ===================================================================
-# Fix for ylong_runtime dependency issue
+# Fix no 3
 # ===================================================================
 
-# 1. Create or update the ohos.build file for ylong_runtime
-RUN if [ ! -f third_party/ylong_runtime/ohos.build ]; then \
-    echo "=== Creating missing ohos.build for ylong_runtime ===" && \
-    mkdir -p third_party/ylong_runtime && \
-    printf '{\n  "subsystem": "commonlibrary",\n  "parts": {\n    "ylong_runtime": {\n      "module_list": [\n        "//third_party/ylong_runtime:ylong_runtime_rust"\n      ]\n    }\n  }\n}' > third_party/ylong_runtime/ohos.build; \
-else \
-    echo "=== Updating existing ylong_runtime ohos.build ===" && \
-    sed -i 's/"subsystem": *"[^"]*"/"subsystem": "commonlibrary"/' third_party/ylong_runtime/ohos.build; \
-fi
+# Diagnostic: Find and Show the contents before the patch.
+RUN echo "--- config.json BEFORE patch ---" && \
+    cat vendor/ohemu/qemu_x86_64_linux_min/config.json || echo "config.json not found."
 
-# 2. Add ylong_runtime component to the commonlibrary subsystem
-RUN echo "=== Adding ylong_runtime to commonlibrary subsystem ===" && \
-    if ! jq -e '.subsystems[] | select(.subsystem=="commonlibrary").components[] | select(.component=="ylong_runtime")' vendor/ohemu/qemu_x86_64_linux_min/config.json >/dev/null; then \
-        jq '(.subsystems[] | select(.subsystem == "commonlibrary").components) += [{"component": "ylong_runtime", "features":[]}]' \
-        vendor/ohemu/qemu_x86_64_linux_min/config.json > tmp.json && \
-        mv tmp.json vendor/ohemu/qemu_x86_64_linux_min/config.json; \
-    else \
-        echo "ylong_runtime component already exists in commonlibrary subsystem"; \
-    fi
+# Patch 3: Atomically update config.json with robust pre- and post-validation
+RUN echo "=== Applying the patch no 3 ===" && \
+    config_file="vendor/ohemu/qemu_x86_64_linux_min/config.json" && \
+    output_file="config_patched.json" && \
+    echo "Processing config file: $config_file" && \
+    \
+    echo "--- Running Pre-flight Validations ---" && \
+    if ! jq -e '.subsystems[] | select(.subsystem == "device_x86_64_virt")' "$config_file" >/dev/null 2>&1; then \
+        echo "✗ ERROR: Prerequisite 'device_x86_64_virt' subsystem not found. Aborting patch." >&2; \
+        exit 1; \
+    fi && \
+    if ! jq -e '.subsystems[] | select(.subsystem == "commonlibrary")' "$config_file" >/dev/null 2>&1; then \
+        echo "✗ ERROR: Prerequisite 'commonlibrary' subsystem not found. Aborting patch." >&2; \
+        exit 1; \
+    fi && \
+    echo "✓ Pre-flight checks passed." && \
+    \
+    echo "--- Applying all changes atomically ---" && \
+    jq ' \
+        (.subsystems[] | select(.subsystem == "device_x86_64_virt").subsystem) = "device_qemu-x86_64-linux" | \
+        (.subsystems[] | select(.subsystem == "commonlibrary").components) |= (. + [{"component": "ylong_runtime", "features": []}] | unique_by(.component)) | \
+        if any(.subsystems[]; .subsystem == "resourceschedule") then . else .subsystems += [{ \
+            "subsystem": "resourceschedule", \
+            "components": [ \
+                { "component": "ffrt", "features":[] }, \
+                { "component": "frame_aware_sched", "features":[] } \
+            ] \
+        }] end \
+    ' "$config_file" > "$output_file" && \
+    echo "✓ Changes generated into temporary file." && \
+    \
+    echo "--- Running Post-flight Validations on generated file ---" && \
+    if ! jq -e '.subsystems[] | select(.subsystem == "device_qemu-x86_64-linux")' "$output_file" >/dev/null 2>&1; then \
+        echo "✗ Validation failed: 'device_qemu-x86_64-linux' subsystem not found in output." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    if ! jq -e '.subsystems[] | select(.subsystem == "commonlibrary").components[] | select(.component == "ylong_runtime")' "$output_file" >/dev/null 2>&1; then \
+        echo "✗ Validation failed: 'ylong_runtime' component not found in output." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    if ! jq -e '.subsystems[] | select(.subsystem == "resourceschedule").components[] | select(.component == "ffrt")' "$output_file" >/dev/null 2>&1; then \
+        echo "✗ Validation failed: 'ffrt' component not found in 'resourceschedule' subsystem." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    if ! jq -e '.subsystems[] | select(.subsystem == "resourceschedule").components[] | select(.component == "frame_aware_sched")' "$output_file" >/dev/null 2>&1; then \
+        echo "✗ Validation failed: 'frame_aware_sched' component not found in 'resourceschedule' subsystem." >&2; \
+        rm -f "$output_file"; exit 1; \
+    fi && \
+    echo "✓ Post-flight checks passed." && \
+    \
+    mv "$output_file" "$config_file" && \
+    echo "✓✓✓ Patch 3 applied and validated successfully! ✓✓✓"
 
-# 3. Apply whitelist patches for ylong_runtime
-RUN echo "=== Applying ylong_runtime whitelist patches ===" && \
-    find build/ -name compile_standard_whitelist.json -print0 | xargs -0 sed -i \
-    -e '/"bundle_subsystem_error": \[/a \    "third_party\/ylong_runtime\/ohos.build",' \
-    -e '/"deps_added_external_part_module": \[/a \    "//third_party\/ylong_runtime:ylong_runtime_rust",'
-
-# Diagnostic: Find and show the patched content of the source whitelist template.
-RUN echo "--- SOURCE whitelist AFTER patch ---" && \
-    find build/ -name compile_standard_whitelist.json -print0 | xargs -0 cat || echo "Source whitelist file not found after patch."
+# Diagnostic: Find and Show the contents after the patch.
+RUN echo "--- config.json AFTER patch ---" && \
+    cat vendor/ohemu/qemu_x86_64_linux_min/config.json || echo "config.json not found."
 
 # --- START DIAGNOSTIC BLOCK (Essential Pre-Build) ---
 
@@ -178,19 +232,6 @@ RUN echo "--- Contents of current directory (first few lines) ---" && ls -la . |
 
 # Diagnostic: Show hb set help (useful syntax reminder). Helps to confirm hb is installed.
 RUN echo "--- hb set --help ---" && hb set --help || true
-
-# Diagnostic: Show hb build help (useful syntax reminder). Helps to confirm hb is installed.
-RUN echo "--- hb build --help ---" && hb build --help || true
-
-# Diagnostic: Print the content of both ohos.build files
-RUN echo "--- Contents of ohos.build files ---" && \
-    echo "device/qemu/x86_64_virt/linux/ohos.build:" && \
-    cat device/qemu/x86_64_virt/linux/ohos.build && \
-    echo "\ndevice/qemu/x86_64_virt/ohos.build:" && \
-    cat device/qemu/x86_64_virt/ohos.build
-
-RUN echo "--- UPDATED Contents of config.json ---" && \
-    cat vendor/ohemu/qemu_x86_64_linux_min/config.json
 
 # --- END DIAGNOSTIC BLOCK ---
 
@@ -209,7 +250,12 @@ RUN echo "=== Running hb build to build the OpenHarmony OS ===" && \
     hb build --product-name qemu-x86_64-linux-min@ohemu \
     --target-cpu x86_64 \
     --verbose \
-    --log-level debug
+    --log-level debug || \
+    (echo "=== BUILD FAILED - Dumping error.log ===" && \
+     cat /openharmony/OpenHarmony/out/qemu-x86_64-linux/error.log 2>/dev/null || echo "No error.log found" && \
+     echo "=== BUILD FAILED - Dumping any other error logs ===" && \
+     find /openharmony/OpenHarmony/out/ -name "*.log" -exec echo "=== {} ===" \; -exec tail -50 {} \; 2>/dev/null || echo "No additional logs found" && \
+     false)
 
 # Diagnostic: List all final build artifacts in the main output directory.
 RUN echo "--- Listing All Final Build Artifacts in the 'out' directory ---" && \

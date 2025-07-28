@@ -5,6 +5,11 @@ networks:
   openharmony_net:
     driver: bridge
 
+# Define a volume for persisting OpenHarmony build artifacts
+volumes:
+  openharmony_build:
+    external: true
+      
 services:
   # Service 1: Builds and runs the OpenHarmony OS inside the QEMU emulator
   openharmony_standard:
@@ -12,7 +17,6 @@ services:
       context: .
       # Make sure this filename matches your Dockerfile
       dockerfile: Dockerfile.openharmony_standard
-    image: openharmony:standard-5.1
     container_name: openharmony_standard_container
     # Give the container direct access to KVM for hardware acceleration, which is critical for performance
     devices:
@@ -20,6 +24,9 @@ services:
     # This container joins our custom network to be reachable by the VNC gateway
     networks:
       - openharmony_net
+    # Mount the named volume to persist build artifacts
+    volumes:
+      - openharmony_build:/openharmony
 
   # Service 2: The web gateway that lets you view the OS in a browser
   vnc_gateway:
