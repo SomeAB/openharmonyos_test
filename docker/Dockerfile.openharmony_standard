@@ -167,58 +167,8 @@ RUN echo "--- Subsystem Components Whitelist AFTER patch ---" && \
 RUN echo "--- config.json BEFORE patch ---" && \
     cat vendor/ohemu/qemu_x86_64_linux_min/config.json || echo "config.json not found."
 
-# Patch 3: Atomically update config.json with robust pre- and post-validation
-RUN echo "=== Applying the patch no 3 ===" && \
-    config_file="vendor/ohemu/qemu_x86_64_linux_min/config.json" && \
-    output_file="config_patched.json" && \
-    echo "Processing config file: $config_file" && \
-    \
-    echo "--- Running Pre-flight Validations ---" && \
-    if ! jq -e '.subsystems[] | select(.subsystem == "device_x86_64_virt")' "$config_file" >/dev/null 2>&1; then \
-        echo "✗ ERROR: Prerequisite 'device_x86_64_virt' subsystem not found. Aborting patch." >&2; \
-        exit 1; \
-    fi && \
-    if ! jq -e '.subsystems[] | select(.subsystem == "commonlibrary")' "$config_file" >/dev/null 2>&1; then \
-        echo "✗ ERROR: Prerequisite 'commonlibrary' subsystem not found. Aborting patch." >&2; \
-        exit 1; \
-    fi && \
-    echo "✓ Pre-flight checks passed." && \
-    \
-    echo "--- Applying all changes atomically ---" && \
-    jq ' \
-        (.subsystems[] | select(.subsystem == "device_x86_64_virt").subsystem) = "device_qemu-x86_64-linux" | \
-        (.subsystems[] | select(.subsystem == "commonlibrary").components) |= (. + [{"component": "ylong_runtime", "features": []}] | unique_by(.component)) | \
-        if any(.subsystems[]; .subsystem == "resourceschedule") then . else .subsystems += [{ \
-            "subsystem": "resourceschedule", \
-            "components": [ \
-                { "component": "ffrt", "features":[] }, \
-                { "component": "frame_aware_sched", "features":[] } \
-            ] \
-        }] end \
-    ' "$config_file" > "$output_file" && \
-    echo "✓ Changes generated into temporary file." && \
-    \
-    echo "--- Running Post-flight Validations on generated file ---" && \
-    if ! jq -e '.subsystems[] | select(.subsystem == "device_qemu-x86_64-linux")' "$output_file" >/dev/null 2>&1; then \
-        echo "✗ Validation failed: 'device_qemu-x86_64-linux' subsystem not found in output." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    if ! jq -e '.subsystems[] | select(.subsystem == "commonlibrary").components[] | select(.component == "ylong_runtime")' "$output_file" >/dev/null 2>&1; then \
-        echo "✗ Validation failed: 'ylong_runtime' component not found in output." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    if ! jq -e '.subsystems[] | select(.subsystem == "resourceschedule").components[] | select(.component == "ffrt")' "$output_file" >/dev/null 2>&1; then \
-        echo "✗ Validation failed: 'ffrt' component not found in 'resourceschedule' subsystem." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    if ! jq -e '.subsystems[] | select(.subsystem == "resourceschedule").components[] | select(.component == "frame_aware_sched")' "$output_file" >/dev/null 2>&1; then \
-        echo "✗ Validation failed: 'frame_aware_sched' component not found in 'resourceschedule' subsystem." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    echo "✓ Post-flight checks passed." && \
-    \
-    mv "$output_file" "$config_file" && \
-    echo "✓✓✓ Patch 3 applied and validated successfully! ✓✓✓"
+# Patch 3: Replace the config.json file with a pre-configured variant
+COPY config_variants/config.json vendor/ohemu/qemu_x86_64_linux_min/config.json
 
 # Diagnostic: Find and Show the contents after the patch.
 RUN echo "--- config.json AFTER patch ---" && \
@@ -354,55 +304,6 @@ RUN echo "--- Inner Device Manager BUILD.gn file AFTER patch ---" && \
 # ===================================================================
 # Fix no 5
 # ===================================================================
-
-# Diagnostic: Find and Show the contents before the patch.
-RUN echo "--- config.json BEFORE patch ---" && \
-    cat vendor/ohemu/qemu_x86_64_linux_min/config.json || echo "config.json not found."
-
-# Patch 5: Add hiappevent component to hiviewdfx subsystem for accessibility interface support
-RUN echo "=== Applying the patch no 5 ===" && \
-    config_file="vendor/ohemu/qemu_x86_64_linux_min/config.json" && \
-    output_file="config_hiappevent_patched.json" && \
-    echo "Processing config file: $config_file" && \
-    \
-    echo "--- Running Pre-flight Validations ---" && \
-    if [ ! -f "$config_file" ]; then \
-        echo "✗ ERROR: Config file not found at $config_file. Aborting patch." >&2; \
-        exit 1; \
-    fi && \
-    if ! jq -e '.subsystems[] | select(.subsystem == "hiviewdfx")' "$config_file" >/dev/null 2>&1; then \
-        echo "✗ ERROR: Prerequisite 'hiviewdfx' subsystem not found. Aborting patch." >&2; \
-        exit 1; \
-    fi && \
-    echo "✓ Pre-flight checks passed." && \
-    \
-    echo "--- Applying changes: adding hiappevent component to hiviewdfx subsystem ---" && \
-    jq ' \
-        (.subsystems[] | select(.subsystem == "hiviewdfx").components) |= (. + [{"component": "hiappevent", "features": []}] | unique_by(.component)) \
-    ' "$config_file" > "$output_file" && \
-    echo "✓ Changes generated into temporary file." && \
-    \
-    echo "--- Running Post-flight Validations on generated file ---" && \
-    if [ ! -f "$output_file" ]; then \
-        echo "✗ Validation failed: Output file was not created." >&2; \
-        exit 1; \
-    fi && \
-    if ! jq -e '.subsystems[] | select(.subsystem == "hiviewdfx").components[] | select(.component == "hiappevent")' "$output_file" >/dev/null 2>&1; then \
-        echo "✗ Validation failed: 'hiappevent' component not found in 'hiviewdfx' subsystem." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    if ! jq -e '.subsystems[] | select(.subsystem == "hiviewdfx")' "$output_file" >/dev/null 2>&1; then \
-        echo "✗ Validation failed: 'hiviewdfx' subsystem missing from output." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    echo "✓ Post-flight checks passed." && \
-    \
-    mv "$output_file" "$config_file" && \
-    echo "✓✓✓ Patch 5 applied and validated successfully! ✓✓✓"
-
-# Diagnostic: Find and Show the contents after the patch.
-RUN echo "--- config.json AFTER patch ---" && \
-    cat vendor/ohemu/qemu_x86_64_linux_min/config.json || echo "config.json not found."
 
 # ===================================================================
 # Fix no 6

@@ -1,0 +1,110 @@
+{
+    "product_name": "qemu-x86_64-linux-min",
+    "type": "standard",
+    "version": "3.0",
+    "device_company": "qemu",
+    "board": "qemu-x86_64-linux",
+    "target_cpu": "x86_64",
+    "target_os": "ohos",
+    "enable_ramdisk": true,
+    "support_jsapi": false,
+    "device_build_path": "device/qemu/x86_64_virt/linux",
+    "subsystems": [
+      {
+        "subsystem": "build",
+        "components": [
+          { "component": "build_framework", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "startup",
+        "components": [
+          { "component": "startup_l2", "features":[] },
+          { "component": "init", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "hiviewdfx",
+        "components": [
+          { "component": "hilog", "features":[] },
+          { "component": "hitrace", "features":[] },
+          { "component": "faultloggerd", "features":[] },
+          { "component": "hisysevent", "features":[] },
+          { "component": "hichecker", "features":[ "hichecker_support_asan=false" ] },
+          { "component": "hiappevent", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "distributedhardware",
+        "components": [
+          { "component": "device_manager", "features": [] }
+        ]
+      },
+      {
+        "subsystem": "security",
+        "components": [
+          { "component": "device_auth", "features":[] },
+          { "component": "access_token", "features":[] },
+          { "component": "huks", "features": [] }
+        ]
+      },
+      {
+        "subsystem": "commonlibrary",
+        "components": [
+          { "component": "c_utils", "features": [] },
+          { "component": "ylong_runtime", "features": [] }
+        ]
+      },
+      {
+        "subsystem": "communication",
+        "components": [
+          { "component": "ipc", "features":[] },
+          { "component": "dsoftbus", "features":["dsoftbus_get_devicename=false"] }
+        ]
+      },
+      {
+        "subsystem": "notification",
+        "components": [
+          { "component": "eventhandler", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "systemabilitymgr",
+        "components": [
+          { "component": "samgr", "features":[] },
+          { "component": "safwk", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "developtools",
+        "components": [
+          { "component": "hdc", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "securec",
+        "components": [
+          { "component": "thirdparty_bounds_checking_function", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "device_qemu-x86_64-linux",
+        "components": [
+          { "component": "qemu_x86_64_linux_chipset", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "resourceschedule",
+        "components": [
+          { "component": "ffrt", "features": [] },
+          { "component": "frame_aware_sched", "features": [] }
+        ]
+      },
+      {
+        "subsystem": "ability",
+        "components": [
+          { "component": "idl_tool", "features":[] }
+        ]
+      }
+    ]
+  }
