@@ -1,10 +1,10 @@
 {
     "product_name": "qemu-x86_64-linux-min",
-    "type": "standard",
     "version": "3.0",
+    "type": "standard",
+    "target_cpu": "x86_64",
     "device_company": "qemu",
     "board": "qemu-x86_64-linux",
-    "target_cpu": "x86_64",
     "target_os": "ohos",
     "enable_ramdisk": true,
     "support_jsapi": false,

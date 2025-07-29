@@ -4,6 +4,9 @@ This is an attempt to build from source **OpenHarmony OS 5.1 Standard**.
 
 IMP NOTE: The 3.2 build (old docker file) is working correctly. But 5.1 build has some build issues that I'm currently working out (mostly dependencies, flags, etc)
 
+You can also support me with a small donation on [Buy Me a Coffee](coff.ee/someab) if you find this project useful.
+如果你觉得这个项目对你有帮助，也可以[请我喝杯咖啡](https://coff.ee/someab)来支持我。
+
 ## Steps to use
 1. Clone the repo or just Download the 'Dockerfile.openharmony_standard' and 'docker-compose.yml' files
 2. Download the source code tar archive from the official OpenHarmony site: https://repo.huaweicloud.com/openharmony/os/5.1.0-Release/code-v5.1.0-Release.tar.gz
