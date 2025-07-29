@@ -8,6 +8,8 @@ You can also support me with a small donation on [Buy Me a Coffee](coff.ee/somea
 
 如果你觉得这个项目对你有帮助，也可以[请我喝杯咖啡](https://coff.ee/someab)来支持我。
 
+本页底部提供了机器翻译的中文版本（如有不准确之处，敬请见谅）。
+
 ## Steps to use
 1. Clone the repo or just Download the 'Dockerfile.openharmony_standard' and 'docker-compose.yml' files
 2. Download the source code tar archive from the official OpenHarmony site: https://repo.huaweicloud.com/openharmony/os/5.1.0-Release/code-v5.1.0-Release.tar.gz
@@ -53,10 +55,6 @@ We are using additional technologies like Docker, Docker Compose, QEMU, noVNC, e
 ## Contributing
 
 Feel free to open an issue to suggest refinements, ideas, etc. 
-
-______
-
-Machine Translated Chinese Version below (Excuse me for any inaccuracies)
 ______
 ## 中文版本
 
