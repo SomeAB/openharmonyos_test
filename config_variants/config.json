@@ -11,41 +11,27 @@
     "device_build_path": "device/qemu/x86_64_virt/linux",
     "subsystems": [
       {
+        "subsystem": "ability",
+        "components": [
+          { "component": "idl_tool", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "arkui",
+        "components": [
+          { "component": "ace_engine", "features": ["ace_engine_feature_enable_web = true", "ace_engine_feature_enable_accessibility = true"] }
+        ]
+      },
+      {
         "subsystem": "build",
         "components": [
           { "component": "build_framework", "features":[] }
         ]
       },
       {
-        "subsystem": "startup",
+        "subsystem": "bundlemanager",
         "components": [
-          { "component": "startup_l2", "features":[] },
-          { "component": "init", "features":[] }
-        ]
-      },
-      {
-        "subsystem": "hiviewdfx",
-        "components": [
-          { "component": "hilog", "features":[] },
-          { "component": "hitrace", "features":[] },
-          { "component": "faultloggerd", "features":[] },
-          { "component": "hisysevent", "features":[] },
-          { "component": "hichecker", "features":[ "hichecker_support_asan=false" ] },
-          { "component": "hiappevent", "features":[] }
-        ]
-      },
-      {
-        "subsystem": "distributedhardware",
-        "components": [
-          { "component": "device_manager", "features": [] }
-        ]
-      },
-      {
-        "subsystem": "security",
-        "components": [
-          { "component": "device_auth", "features":[] },
-          { "component": "access_token", "features":[] },
-          { "component": "huks", "features": ["huks_qemu_enabled = true"] }
+          { "component": "bundle_framework", "features": [] }
         ]
       },
       {
@@ -63,34 +49,51 @@
         ]
       },
       {
-        "subsystem": "notification",
-        "components": [
-          { "component": "eventhandler", "features":[] }
-        ]
-      },
-      {
-        "subsystem": "systemabilitymgr",
-        "components": [
-          { "component": "samgr", "features":[] },
-          { "component": "safwk", "features":[] }
-        ]
-      },
-      {
         "subsystem": "developtools",
         "components": [
           { "component": "hdc", "features":[] }
         ]
       },
       {
-        "subsystem": "securec",
-        "components": [
-          { "component": "thirdparty_bounds_checking_function", "features":[] }
-        ]
-      },
-      {
         "subsystem": "device_qemu-x86_64-linux",
         "components": [
           { "component": "qemu_x86_64_linux_chipset", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "distributeddatamgr",
+        "components": [
+          { "component": "pasteboard", "features": [] }
+        ]
+      },
+      {
+        "subsystem": "distributedhardware",
+        "components": [
+          { "component": "device_manager", "features": [] }
+        ]
+      },
+      {
+        "subsystem": "graphic",
+        "components": [
+          { "component": "graphic_2d", "features": ["graphic_2d_feature_rs_enable_eglimage = true", "graphic_2d_feature_use_texgine = true"] },
+          { "component": "graphic_surface", "features": [] }
+        ]
+      },
+      {
+        "subsystem": "hiviewdfx",
+        "components": [
+          { "component": "hilog", "features":[] },
+          { "component": "hitrace", "features":[] },
+          { "component": "faultloggerd", "features":[] },
+          { "component": "hisysevent", "features":[] },
+          { "component": "hichecker", "features":[ "hichecker_support_asan=false" ] },
+          { "component": "hiappevent", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "notification",
+        "components": [
+          { "component": "eventhandler", "features":[] }
         ]
       },
       {
@@ -101,23 +104,40 @@
         ]
       },
       {
-        "subsystem": "ability",
+        "subsystem": "security",
         "components": [
-          { "component": "idl_tool", "features":[] }
+          { "component": "device_auth", "features":[] },
+          { "component": "access_token", "features":[] },
+          { "component": "huks", "features": ["huks_qemu_enabled = false"] },
+          { "component": "certificate_manager", "features":[] }
+          
         ]
       },
       {
-        "subsystem": "arkui",
+        "subsystem": "securec",
         "components": [
-          { "component": "ace_engine", "features": ["ace_engine_feature_enable_web = true", "ace_engine_feature_enable_accessibility = true"] }
+          { "component": "thirdparty_bounds_checking_function", "features":[] }
         ]
       },
       {
-        "subsystem": "graphic",
+        "subsystem": "startup",
         "components": [
-          { "component": "graphic_2d", "features": ["graphic_2d_feature_rs_enable_eglimage = true", "graphic_2d_feature_use_texgine = true"] },
-          { "component": "graphic_surface", "features": [] }
+          { "component": "startup_l2", "features":[] },
+          { "component": "init", "features":[ "init_appspawn_client_module=false" ] }
+        ]
+      },
+      {
+        "subsystem": "systemabilitymgr",
+        "components": [
+          { "component": "samgr", "features":[] },
+          { "component": "safwk", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "web",
+        "components": [
+          { "component": "webview", "features": [] }
         ]
       }
     ]
-  }
+}
