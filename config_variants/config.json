@@ -45,7 +45,7 @@
         "components": [
           { "component": "device_auth", "features":[] },
           { "component": "access_token", "features":[] },
-          { "component": "huks", "features": [] }
+          { "component": "huks", "features": ["huks_qemu_enabled = true"] }
         ]
       },
       {
@@ -104,6 +104,19 @@
         "subsystem": "ability",
         "components": [
           { "component": "idl_tool", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "arkui",
+        "components": [
+          { "component": "ace_engine", "features": ["ace_engine_feature_enable_web = true", "ace_engine_feature_enable_accessibility = true"] }
+        ]
+      },
+      {
+        "subsystem": "graphic",
+        "components": [
+          { "component": "graphic_2d", "features": ["graphic_2d_feature_rs_enable_eglimage = true", "graphic_2d_feature_use_texgine = true"] },
+          { "component": "graphic_surface", "features": [] }
         ]
       }
     ]

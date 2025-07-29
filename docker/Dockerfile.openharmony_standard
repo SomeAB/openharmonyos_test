@@ -10,7 +10,7 @@ RUN ln -sf /bin/bash /bin/sh
 
 # STEP 3: Download the full source code archive.
 # This large layer will be cached after the first successful download.
-COPY code-v5.1.0-Release.tar.gz .
+COPY docker/code-v5.1.0-Release.tar.gz .
 
 # STEP 4: Extract the source code and remove the archive to save space.
 RUN tar --strip-components=1 -xzf code-v5.1.0-Release.tar.gz && rm code-v5.1.0-Release.tar.gz
@@ -167,7 +167,10 @@ RUN echo "--- Subsystem Components Whitelist AFTER patch ---" && \
 RUN echo "--- config.json BEFORE patch ---" && \
     cat vendor/ohemu/qemu_x86_64_linux_min/config.json || echo "config.json not found."
 
-# Patch 3: Replace the config.json file with a pre-configured variant
+# Simple echo for clarity
+RUN echo "=== Applying the patch no 3 ==="
+
+# Patch 3: Replace the config.json file with a pre-configured variant that has various fixes applied.
 COPY config_variants/config.json vendor/ohemu/qemu_x86_64_linux_min/config.json
 
 # Diagnostic: Find and Show the contents after the patch.

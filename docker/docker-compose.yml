@@ -14,9 +14,9 @@ services:
   # Service 1: Builds and runs the OpenHarmony OS inside the QEMU emulator
   openharmony_standard:
     build:
-      context: .
+      context: ..
       # Make sure this filename matches your Dockerfile
-      dockerfile: Dockerfile.openharmony_standard
+      dockerfile: docker/Dockerfile.openharmony_standard
     container_name: openharmony_standard_container
     # Give the container direct access to KVM for hardware acceleration, which is critical for performance
     devices:
