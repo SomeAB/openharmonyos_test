@@ -109,8 +109,8 @@
           { "component": "device_auth", "features":[] },
           { "component": "access_token", "features":[] },
           { "component": "huks", "features": ["huks_qemu_enabled = false"] },
-          { "component": "certificate_manager", "features":[] }
-          
+          { "component": "certificate_manager", "features":[] },
+          { "component": "appverify", "features":[] }
         ]
       },
       {
@@ -123,7 +123,8 @@
         "subsystem": "startup",
         "components": [
           { "component": "startup_l2", "features":[] },
-          { "component": "init", "features":[ "init_appspawn_client_module=false" ] }
+          { "component": "init", "features":[ "init_appspawn_client_module=false" ] },
+          { "component": "appspawn", "features":[] }
         ]
       },
       {

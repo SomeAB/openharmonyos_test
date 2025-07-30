@@ -107,26 +107,9 @@ RUN ./build/prebuilts_download.sh
 RUN echo "--- Compile Standard Whitelist BEFORE patch ---" && \
     find build/ -name compile_standard_whitelist.json -print0 | xargs -0 cat || echo "Source whitelist not found."
 
-# Patch 1: Add entries to compile_standard_whitelist.json
-RUN echo "=== Applying the patch no 1 ===" && \
-    find build/ -name compile_standard_whitelist.json | while read file; do \
-        echo "Processing file: $file"; \
-        # Check if subsystem_components is empty and add entries
-        if jq -e '.subsystem_components | length == 0' "$file" >/dev/null 2>&1; then \
-            echo "Adding entries to empty subsystem_components array in $file"; \
-            jq '.subsystem_components = ["device_qemu-x86_64-linux", "device_x86_64_virt", "product_qemu-x86_64-linux-min"]' "$file" > tmp.json && mv tmp.json "$file" && echo "Entries added successfully to subsystem_components"; \
-        else \
-            echo "subsystem_components array is not empty, checking individual entries"; \
-            jq '.subsystem_components |= (. + ["device_qemu-x86_64-linux", "device_x86_64_virt", "product_qemu-x86_64-linux-min"] | unique)' "$file" > tmp.json && mv tmp.json "$file" && echo "Missing entries added to subsystem_components"; \
-        fi; \
-        # Also add the bundle_subsystem_error entry
-        if ! jq -e ".bundle_subsystem_error[] | select(. == \"device/qemu/x86_64_virt/linux/ohos.build\")" "$file" >/dev/null 2>&1; then \
-            echo "Adding entry to bundle_subsystem_error in $file"; \
-            jq ".bundle_subsystem_error += [\"device/qemu/x86_64_virt/linux/ohos.build\"]" "$file" > tmp.json && mv tmp.json "$file" && echo "Entry added successfully to bundle_subsystem_error"; \
-        else \
-            echo "Entry already exists in bundle_subsystem_error array"; \
-        fi; \
-    done
+# Patch 1: Replace compile_standard_whitelist.json with pre-configured version
+RUN echo "=== Applying the patch no 1 ==="
+COPY substitutes/qemu_x86_64_gui/compile_standard_whitelist.json build/compile_standard_whitelist.json
 
 # Diagnostic: Find & Show the contents after the patch.
 RUN echo "--- Compile Standard Whitelist AFTER patch ---" && \
@@ -140,20 +123,9 @@ RUN echo "--- Compile Standard Whitelist AFTER patch ---" && \
 RUN echo "--- Subsystem Components Whitelist BEFORE patch ---" && \
     find build/ -name subsystem_components_whitelist.json -print0 | xargs -0 cat || echo "Subsystem components whitelist not found."
 
-# Patch 2: Add 3 entries to the subsystem_components_whitelist.json
-RUN echo "=== Applying the patch no 2 ===" && \
-    find build/ -name subsystem_components_whitelist.json | while read file; do \
-        echo "Processing file: $file"; \
-        device_exists=$(jq -e "has(\"device_qemu-x86_64-linux\")" "$file" 2>/dev/null); \
-        product_exists=$(jq -e "has(\"product_qemu-x86_64-linux-min\")" "$file" 2>/dev/null); \
-        virt_exists=$(jq -e "has(\"device_x86_64_virt\")" "$file" 2>/dev/null); \
-        echo "Device exists: $device_exists, Product exists: $product_exists, Virt exists: $virt_exists"; \
-        if [ "$device_exists" = "true" ] || [ "$product_exists" = "true" ] || [ "$virt_exists" = "true" ]; then \
-            echo "Info: One or more entries were already present in subsystem_components_whitelist"; \
-        fi; \
-        echo "Adding entries to $file"; \
-        jq ". + {\"device_qemu-x86_64-linux\": \"device_qemu-x86_64-linux\", \"product_qemu-x86_64-linux-min\": \"product_qemu-x86_64-linux-min\", \"device_x86_64_virt\": \"device_x86_64_virt\"}" "$file" > tmp.json && mv tmp.json "$file" && echo "Entries added successfully"; \
-    done
+# Patch 2: Replace subsystem_components_whitelist.json with pre-configured version
+RUN echo "=== Applying the patch no 2 ==="
+COPY substitutes/qemu_x86_64_gui/subsystem_components_whitelist.json build/subsystem_components_whitelist.json
 
 # Diagnostic: Find and Show the contents after the patch.
 RUN echo "--- Subsystem Components Whitelist AFTER patch ---" && \
@@ -167,11 +139,9 @@ RUN echo "--- Subsystem Components Whitelist AFTER patch ---" && \
 RUN echo "--- config.json BEFORE patch ---" && \
     cat vendor/ohemu/qemu_x86_64_linux_min/config.json || echo "config.json not found."
 
-# Simple echo for clarity
-RUN echo "=== Applying the patch no 3 ==="
-
 # Patch 3: Replace the config.json file with a pre-configured variant that has various fixes applied.
-COPY config_variants/config.json vendor/ohemu/qemu_x86_64_linux_min/config.json
+RUN echo "=== Applying the patch no 3 ==="
+COPY substitutes/qemu_x86_64_gui/config.json vendor/ohemu/qemu_x86_64_linux_min/config.json
 
 # Diagnostic: Find and Show the contents after the patch.
 RUN echo "--- config.json AFTER patch ---" && \
@@ -189,112 +159,13 @@ RUN echo "--- Outer Device Manager BUILD.gn file BEFORE patch ---" && \
 RUN echo "--- Inner Device Manager BUILD.gn file BEFORE patch ---" && \
     cat foundation/distributedhardware/device_manager/display/entry/BUILD.gn || echo "Inner Device Manager BUILD.gn file not found."
 
-# Patch 4A: Remove DeviceManager_UI dependency from outer BUILD.gn to avoid ohos_hap() error
-RUN echo "=== Applying the patch no 4A ===" && \
-    build_file="foundation/distributedhardware/device_manager/BUILD.gn" && \
-    output_file="BUILD_gn_patched.tmp" && \
-    echo "Processing BUILD.gn file: $build_file" && \
-    \
-    echo "--- Running Pre-flight Validations ---" && \
-    if [ ! -f "$build_file" ]; then \
-        echo "✗ ERROR: Target BUILD.gn file not found at $build_file. Aborting patch." >&2; \
-        exit 1; \
-    fi && \
-    if ! grep -q 'deps += \[ "display/entry:DeviceManager_UI" \]' "$build_file"; then \
-        echo "✗ ERROR: Target DeviceManager_UI dependency line not found. Aborting patch." >&2; \
-        exit 1; \
-    fi && \
-    if ! grep -q 'if (product_name != "qemu-arm-linux-min")' "$build_file"; then \
-        echo "✗ ERROR: Target conditional block not found. Aborting patch." >&2; \
-        exit 1; \
-    fi && \
-    echo "✓ Pre-flight checks passed." && \
-    \
-    echo "--- Applying changes: removing DeviceManager_UI conditional block ---" && \
-    sed '/if (product_name != "qemu-arm-linux-min") {/,/}/d' "$build_file" > "$output_file" && \
-    echo "✓ Changes generated into temporary file." && \
-    \
-    echo "--- Running Post-flight Validations on generated file ---" && \
-    if [ ! -f "$output_file" ]; then \
-        echo "✗ Validation failed: Output file was not created." >&2; \
-        exit 1; \
-    fi && \
-    if grep -q 'deps += \[ "display/entry:DeviceManager_UI" \]' "$output_file"; then \
-        echo "✗ Validation failed: DeviceManager_UI dependency still present in output." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    if grep -q 'if (product_name != "qemu-arm-linux-min")' "$output_file"; then \
-        echo "✗ Validation failed: Conditional block still present in output." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    if ! grep -q 'group("device_manager")' "$output_file"; then \
-        echo "✗ Validation failed: Main device_manager group missing from output." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    echo "✓ Post-flight checks passed." && \
-    \
-    mv "$output_file" "$build_file" && \
-    echo "✓✓✓ Patch 4A applied and validated successfully! ✓✓✓"
+# Patch 4A: Replace outer BUILD.gn with pre-configured version to avoid ohos_hap() error
+RUN echo "=== Applying the patch no 4A ==="
+COPY substitutes/qemu_x86_64_gui/build_outer_devicemanagerui.gn foundation/distributedhardware/device_manager/BUILD.gn
 
-# Patch 4B: Convert ohos_hap() to ohos_app() in inner BUILD.gn for modern template compatibility
-RUN echo "=== Applying the patch no 4B ===" && \
-    build_file="foundation/distributedhardware/device_manager/display/entry/BUILD.gn" && \
-    output_file="BUILD_gn_inner_patched.tmp" && \
-    echo "Processing inner BUILD.gn file: $build_file" && \
-    \
-    echo "--- Running Pre-flight Validations ---" && \
-    if [ ! -f "$build_file" ]; then \
-        echo "✗ ERROR: Target inner BUILD.gn file not found at $build_file. Aborting patch." >&2; \
-        exit 1; \
-    fi && \
-    if ! grep -q 'ohos_hap("DeviceManager_UI")' "$build_file"; then \
-        echo "✗ ERROR: Target ohos_hap template not found. Aborting patch." >&2; \
-        exit 1; \
-    fi && \
-    if grep -q 'ohos_app(' "$build_file"; then \
-        echo "✗ ERROR: ohos_app template already exists. Patch may have been applied. Aborting." >&2; \
-        exit 1; \
-    fi && \
-    echo "✓ Pre-flight checks passed." && \
-    \
-    echo "--- Applying changes: converting ohos_hap to ohos_app template ---" && \
-    sed -e 's/ohos_hap("DeviceManager_UI")/ohos_app("DeviceManager_UI")/' \
-        -e '/ohos_app("DeviceManager_UI") {/a\  app_type = "hap"' \
-        -e '/publicity_file =/d' \
-        -e '/certificate_profile =/d' \
-        -e '/if (defined(sign_hap_py_path)) {/,/}/d' \
-        "$build_file" > "$output_file" && \
-    echo "✓ Changes generated into temporary file." && \
-    \
-    echo "--- Running Post-flight Validations on generated file ---" && \
-    if [ ! -f "$output_file" ]; then \
-        echo "✗ Validation failed: Output file was not created." >&2; \
-        exit 1; \
-    fi && \
-    if ! grep -q 'ohos_app("DeviceManager_UI")' "$output_file"; then \
-        echo "✗ Validation failed: ohos_app template not found in output." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    if ! grep -q 'app_type = "hap"' "$output_file"; then \
-        echo "✗ Validation failed: app_type parameter not found in output." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    if grep -q 'ohos_hap(' "$output_file"; then \
-        echo "✗ Validation failed: ohos_hap template still present in output." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    if grep -q 'publicity_file\|certificate_profile' "$output_file"; then \
-        echo "✗ Validation failed: Obsolete parameters still present in output." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    if grep -q 'sign_hap_py_path' "$output_file"; then \
-        echo "✗ Validation failed: Signing block still present in output." >&2; \
-        rm -f "$output_file"; exit 1; \
-    fi && \
-    echo "✓ Post-flight checks passed." && \
-    \
-    mv "$output_file" "$build_file" && \
-    echo "✓✓✓ Patch 4B applied and validated successfully! ✓✓✓"
+# Patch 4B: Replace inner BUILD.gn with pre-configured version for modern template compatibility
+RUN echo "=== Applying the patch no 4B ==="
+COPY substitutes/qemu_x86_64_gui/build_inner_devicemanagerui.gn foundation/distributedhardware/device_manager/display/entry/BUILD.gn
 
 # Diagnostic: Find and Show the contents after the patch.
 RUN echo "--- Outer Device Manager BUILD.gn file AFTER patch ---" && \

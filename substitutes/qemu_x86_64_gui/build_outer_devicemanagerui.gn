@@ -1,0 +1,72 @@
+# Copyright (c) 2022-2024 Huawei Device Co., Ltd.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+if (defined(ohos_lite)) {
+  import("//build/lite/config/component/lite_component.gni")
+  if (ohos_kernel_type == "liteos_m") {
+    lite_component("device_manager") {
+      features = [ "interfaces/inner_kits/native_cpp:devicemanagersdk" ]
+    }
+    lite_component("device_manager_fwk") {
+      features = []
+    }
+    group("device_manager_test") {
+      testonly = true
+      deps = []
+    }
+  } else {
+    lite_component("device_manager") {
+      features = [
+        "utils:devicemanagerutils",
+        "services/service:devicemanagerservice",
+        "services/implementation:devicemanagerserviceimpl",
+        "interfaces/inner_kits/native_cpp:devicemanagersdk",
+        "test/smallunittest:lite_devicemanager_test",
+        "services/softbuscache:dmdevicecache",
+      ]
+    }
+    lite_component("device_manager_fwk") {
+      features = [ "interfaces/inner_kits/native_cpp:devicemanagersdk" ]
+    }
+    group("device_manager_test") {
+      testonly = true
+      deps = []
+    }
+  }
+} else {
+  if (defined(harmony_industry_project) &&
+      harmony_industry_project == "MINE_HARMONY") {
+  }
+  group("device_manager") {
+    deps = [
+      "ext:ext_modules",
+      "sa_profile:dm_sa_profile",
+      "services/etc:ohos.para.dac",
+      "services/implementation:devicemanagerserviceimpl",
+      "services/service:devicemanagerservice",
+      "services/softbuscache:dmdevicecache",
+    ]
+  }
+  group("device_manager_fwk") {
+    deps = [
+      "interfaces/cj:cj_distributed_device_manager_ffi_group",
+      "interfaces/inner_kits/native_cpp:devicemanagersdk",
+      "interfaces/kits:devicemanager_native_js",
+      "interfaces/mini_tools_kits/native_cpp:devicemanagerminisdk",
+    ]
+  }
+  group("device_manager_test") {
+    testonly = true
+    deps = [ "test:test" ]
+  }
+}
