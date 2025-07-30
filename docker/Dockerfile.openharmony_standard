@@ -179,6 +179,18 @@ RUN echo "--- Inner Device Manager BUILD.gn file AFTER patch ---" && \
 # Fix no 5
 # ===================================================================
 
+# Diagnostic: Find and Show the contents before the patch.
+RUN echo "--- Pasteboard Dialog BUILD.gn file BEFORE patch ---" && \
+    cat foundation/distributeddatamgr/pasteboard/services/dialog/BUILD.gn || echo "Pasteboard Dialog BUILD.gn file not found."
+
+# Patch 5: Replace pasteboard dialog BUILD.gn with pre-configured version for modern template compatibility
+RUN echo "=== Applying the patch no 5 ==="
+COPY substitutes/qemu_x86_64_gui/build_pasteboard_display.gn foundation/distributeddatamgr/pasteboard/services/dialog/BUILD.gn
+
+# Diagnostic: Find and Show the contents after the patch.
+RUN echo "--- Pasteboard Dialog BUILD.gn file AFTER patch ---" && \
+    cat foundation/distributeddatamgr/pasteboard/services/dialog/BUILD.gn || echo "Pasteboard Dialog BUILD.gn file not found."
+
 # ===================================================================
 # Fix no 6
 # ===================================================================

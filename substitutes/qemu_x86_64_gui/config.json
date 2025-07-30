@@ -80,6 +80,12 @@
         ]
       },
       {
+        "subsystem": "hdf",
+        "components": [
+          { "component": "drivers_interface_camera", "features": [] }
+        ]
+      },
+      {
         "subsystem": "hiviewdfx",
         "components": [
           { "component": "hilog", "features":[] },
@@ -88,6 +94,12 @@
           { "component": "hisysevent", "features":[] },
           { "component": "hichecker", "features":[ "hichecker_support_asan=false" ] },
           { "component": "hiappevent", "features":[] }
+        ]
+      },
+      {
+        "subsystem": "multimedia",
+        "components": [
+          { "component": "av_session", "features": [] }
         ]
       },
       {
