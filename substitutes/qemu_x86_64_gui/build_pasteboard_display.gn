@@ -13,10 +13,6 @@
 
 import("//build/ohos.gni")
 
-group("pasteboard_dialog") {
-  deps = [ ":pasteboard_dialog_hap" ]
-}
-
 ohos_app("pasteboard_dialog_hap") {
   app_type = "hap"
   hap_profile = "PasteboardDialog/entry/src/main/module.json"
@@ -28,10 +24,14 @@ ohos_app("pasteboard_dialog_hap") {
 
   certificate_profile =
       "PasteboardDialog/signature/com.ohos.pasteboarddialog.p7b"
-  hap_name = "pasteboard_dialog"
+  hap_name = "pasteboard_dialog_hap"
   subsystem_name = "distributeddatamgr"
   part_name = "pasteboard"
   module_install_dir = "app/com.ohos.pasteboarddialog"
+}
+
+group("pasteboard_dialog") {
+  deps = [ ":pasteboard_dialog_hap" ]
 }
 
 ohos_js_assets("pasteboard_dialog_js_assets") {
