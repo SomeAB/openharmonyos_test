@@ -22,11 +22,11 @@ ohos_app("pasteboard_dialog_hap") {
     ":pasteboard_dialog_resources",
   ]
 
-  certificate_profile =
-      "PasteboardDialog/signature/com.ohos.pasteboarddialog.p7b"
+  
   hap_name = "pasteboard_dialog_hap"
   subsystem_name = "distributeddatamgr"
   part_name = "pasteboard"
+  js_build_mode = "release"
   module_install_dir = "app/com.ohos.pasteboarddialog"
 }
 

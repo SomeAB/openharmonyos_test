@@ -8,23 +8,12 @@ WORKDIR /openharmony
 # STEP 2: Force the system shell to be bash for better script compatibility.
 RUN ln -sf /bin/bash /bin/sh
 
-# STEP 3: Download the full source code archive.
-# This large layer will be cached after the first successful download.
-COPY docker/code-v5.1.0-Release.tar.gz .
-
-# STEP 4: Extract the source code and remove the archive to save space.
-RUN tar --strip-components=1 -xzf code-v5.1.0-Release.tar.gz && rm code-v5.1.0-Release.tar.gz
-
-# STEP 5: Change the working directory post-extraction to /openharmony/OpenHarmony folder
-WORKDIR /openharmony/OpenHarmony
-
-# STEP 6: Install the comprehensive list of all build and runtime dependencies.
+# STEP 3: Install the comprehensive list of all build and runtime dependencies.
 # This list is designed to be exhaustive to prevent missing package errors.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     bc \
     bison \
     build-essential \
-    cargo \
     ccache \
     clang \
     coreutils \
@@ -39,7 +28,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     git \
     git-lfs \
     gperf \
-    jq \
     libelf-dev \
     libffi-dev \
     libglib2.0-dev \
@@ -62,7 +50,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     python3-pip \
     qemu-system-x86 \
     ruby \
-    rustc \
     rsync \
     scons \
     u-boot-tools \
@@ -72,19 +59,29 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# STEP 6B: Create a symbolic link so 'python' command points to 'python3'
+# STEP 4: Create a symbolic link so 'python' command points to 'python3'
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
-# STEP 7A: Use 'printf' to reliably create the pip config file and disable the PEP 668 error.
+# STEP 5: Use 'printf' to reliably create the pip config file and disable the PEP 668 error.
 RUN printf "[global]\nbreak-system-packages = true\n" > /etc/pip.conf
 
-# STEP 7B: Add ~/.local/bin to PATH so 'hb' command can be found
+# STEP 6: Add ~/.local/bin to PATH so 'hb' command can be found
 ENV PATH="/root/.local/bin:${PATH}"
 
-# STEP 7C: This makes the 'hb' command available and installs its Python dependencies.
+# STEP 7: Download the full source code archive.
+# This large layer will be cached after the first successful download.
+COPY docker/code-v5.1.0-Release.tar.gz .
+
+# STEP 8: Extract the source code and remove the archive to save space.
+RUN tar --strip-components=1 -xzf code-v5.1.0-Release.tar.gz && rm code-v5.1.0-Release.tar.gz
+
+# STEP 9: Change the working directory post-extraction to /openharmony/OpenHarmony folder
+WORKDIR /openharmony/OpenHarmony
+
+# STEP 10: This makes the 'hb' command available and installs its Python dependencies.
 RUN python3 -m pip install --user build/hb
 
-# STEP 8: Create compiler wrapper scripts to force-include the missing header.
+# STEP 11: Create compiler wrapper scripts to force-include the missing header.
 RUN mkdir -p /usr/local/bin_wrappers && \
     printf '#!/bin/bash\nexec /usr/bin/gcc -include cstdint "$@"' > /usr/local/bin_wrappers/gcc && \
     printf '#!/bin/bash\nexec /usr/bin/g++ -include cstdint "$@"' > /usr/local/bin_wrappers/g++ && \
@@ -92,11 +89,11 @@ RUN mkdir -p /usr/local/bin_wrappers && \
     printf '#!/bin/bash\nexec /usr/bin/clang++ -include cstdint "$@"' > /usr/local/bin_wrappers/clang++ && \
     chmod +x /usr/local/bin_wrappers/*
 
-# STEP 9: Prepend the wrapper directory to the PATH environment variable.
+# STEP 12: Prepend the wrapper directory to the PATH environment variable.
 # This ensures our wrappers are called instead of the real compilers.
 ENV PATH="/usr/local/bin_wrappers:${PATH}"
 
-# STEP 10: Download the pre-built compiler toolchain required by the build script.
+# STEP 13: Download the pre-built compiler toolchain required by the build script.
 RUN ./build/prebuilts_download.sh
 
 # ===================================================================
@@ -207,7 +204,7 @@ RUN echo "--- hb set --help ---" && hb set --help || true
 
 # --- END DIAGNOSTIC BLOCK ---
 
-# STEP 11: Set the product configuration for the OpenHarmony build.
+# STEP 14: Set the product configuration for the OpenHarmony build.
 # Now that 'hb' is on the PATH, call it directly. Removed the 'touch .hb' from here, as it was causing conflict with folder creation
 WORKDIR /openharmony/OpenHarmony
 RUN hb set --product-name qemu-x86_64-linux-min@ohemu
@@ -217,7 +214,7 @@ RUN echo "--- hb environment details ---" && \
     hb env || true
 
 
-# STEP 12: Build using the accompanying 'hb build' command
+# STEP 15: Build using the accompanying 'hb build' command
 RUN echo "=== Running hb build to build the OpenHarmony OS ===" && \
     hb build --product-name qemu-x86_64-linux-min@ohemu \
     --target-cpu x86_64 \
@@ -236,20 +233,20 @@ RUN echo "--- Listing All Final Build Artifacts in the 'out' directory ---" && \
 # --- Stage 2: The "Runtime" ---
 FROM ubuntu:22.04
 
-# STEP 13: Copy the compiled OS images and the launch script from the builder stage.
+# STEP 16: Copy the compiled OS images and the launch script from the builder stage.
 COPY --from=builder /openharmony/out/qemu-x86_64-linux/packages/phone/images /ohos
 COPY --from=builder /openharmony/device/qemu/x86_64/launch.sh /
 
-# STEP 14: Install the minimal dependencies needed to RUN the OS.
+# STEP 17: Install the minimal dependencies needed to RUN the OS.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     qemu-system-x86 ovmf spice-client-tools && \
     rm -rf /var/lib/apt/lists/*
 
-# STEP 15: Make the launch script executable.
+# STEP 18: Make the launch script executable.
 RUN chmod +x /launch.sh
 
-# STEP 16: Document that the container exposes port 5900 for the VNC/SPICE stream.
+# STEP 19: Document that the container exposes port 5900 for the VNC/SPICE stream.
 EXPOSE 5900
 
-# STEP 17: Set the launch script as the default command when the container starts.
+# STEP 20: Set the launch script as the default command when the container starts.
 ENTRYPOINT ["/launch.sh"]

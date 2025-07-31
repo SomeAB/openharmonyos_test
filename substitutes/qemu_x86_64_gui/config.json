@@ -132,6 +132,12 @@
         ]
       },
       {
+        "subsystem": "sensors",
+        "components": [
+          { "component": "sensor", "features": [] }
+        ]
+      },
+      {
         "subsystem": "startup",
         "components": [
           { "component": "startup_l2", "features":[] },
